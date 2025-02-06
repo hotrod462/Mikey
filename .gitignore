@@ -7,3 +7,5 @@
 *.wma
 .env
 .venv
+/recordings/*
+!recordings/.gitkeep

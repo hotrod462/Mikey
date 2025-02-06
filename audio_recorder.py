@@ -19,6 +19,7 @@ class AudioRecorder:
         self.RATE = 48000
         self.p = None
         self.stream = None
+        self.session_folder = None  # This will hold the session folder path
 
         # Initialize Groq client for transcription and text generation
         api_key = os.getenv('GROQ_API_KEY')
@@ -101,9 +102,9 @@ class AudioRecorder:
         if self.p:
             self.p.terminate()
 
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"recording_{timestamp}.wav"
+        # Save the recording in the session folder (if provided) or current folder
+        folder = self.session_folder if self.session_folder else "."
+        filename = os.path.join(folder, "recording.wav")
         
         # Combine recorded frames into a single bytes object
         raw_audio = b''.join(self.frames)
@@ -188,10 +189,11 @@ class AudioRecorder:
     def save_transcription_as_md(self, transcription, md_filename=None):
         """
         Save the transcription text to a markdown (.md) file.
-        If md_filename is not provided, a default file name is generated using the current timestamp.
+        If md_filename is not provided, a default file name is generated.
         """
+        folder = self.session_folder if self.session_folder else "."
         if not md_filename:
-            md_filename = f"transcription_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+            md_filename = os.path.join(folder, "transcription.md")
         with open(md_filename, "w", encoding="utf-8") as file:
             file.write("# Transcription\n\n")
             file.write(transcription)
@@ -202,26 +204,28 @@ class AudioRecorder:
         """
         Generate meeting notes from the transcribed text using the Groq llama3.370b versatile model,
         and save them to a markdown (.md) file.
+        Uses a list of messages for the API request.
         """
-        print("Generating meeting notes using Groq llama3.370b versatile model...")
-        prompt = (
-            "Based on the following transcription, generate concise meeting notes including key discussion points, "
-            "decisions, and action items:\n\n"
-            f"{transcription}"
-        )
+        print("Generating meeting notes using Groq llama-3.3-70b versatile model...")
+        messages = [
+            {"role": "system", "content": "You are a meeting notes assistant."},
+            {"role": "user", "content": f"Based on the following transcription, generate concise meeting notes including key discussion points, decisions, and action items:\n\n{transcription}"}
+        ]
         try:
             response = self.groq_client.chat.completions.create(
-                prompt=prompt,
-                model="llama3.3-70b-versatile",     
+                messages=messages,
+                model="llama-3.3-70b-versatile",     
                 temperature=0.0
             )
-            meeting_notes = response.text
+
+            meeting_notes = response.choices[0].message.content
             print("Meeting notes generated successfully.")
         except Exception as e:
             meeting_notes = f"Meeting notes generation error: {e}"
         
+        folder = self.session_folder if self.session_folder else "."
         if not notes_md_filename:
-            notes_md_filename = f"meeting_notes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+            notes_md_filename = os.path.join(folder, "meeting_notes.md")
         with open(notes_md_filename, "w", encoding="utf-8") as file:
             file.write("# Meeting Notes\n\n")
             file.write(meeting_notes)
@@ -251,6 +255,15 @@ def main():
         except Exception as e:
             print("Invalid selection. Using default device.")
             abs_device_index = None
+    
+    # Create a session folder under 'recordings' with a timestamp
+    base_folder = "recordings"
+    os.makedirs(base_folder, exist_ok=True)
+    session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    session_folder = os.path.join(base_folder, session_timestamp)
+    os.makedirs(session_folder, exist_ok=True)
+    recorder.session_folder = session_folder
+    print(f"Session folder created at: {session_folder}")
     
     recorder.start_recording(abs_device_index)
     input("Press Enter to stop recording...")
