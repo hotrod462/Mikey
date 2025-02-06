@@ -168,11 +168,11 @@ class AudioRecorder:
         """Transcribe recorded audio using the Groq whisper-large-v3-turbo model."""
         with open(audio_file, "rb") as f:
             audio_data = f.read()
-        print("Transcribing audio using Groq whisper-large-v3-turbo model...")
+        print("Transcribing audio using Groq whisper-large-v3 model...")
         try:
             response = self.groq_client.audio.transcriptions.create(
                 file=(audio_file, audio_data),
-                model="whisper-large-v3-turbo",
+                model="distil-whisper-large-v3-en",
                 prompt="Transcribe the audio as accurately as possible.",
                 response_format="json",
                 language="en",
@@ -210,7 +210,7 @@ class AudioRecorder:
             f"{transcription}"
         )
         try:
-            response = self.groq_client.text.completions.create(
+            response = self.groq_client.chat.completions.create(
                 prompt=prompt,
                 model="llama3.3-70b-versatile",     
                 temperature=0.0

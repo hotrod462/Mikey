@@ -1,5 +1,3 @@
 pyaudiowpatch==0.2.12.7
-groq==0.4.1
+groq==0.18.0
 python-dotenv==1.0.0
-numpy
-noisereduce
