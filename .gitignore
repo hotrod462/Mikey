@@ -1,0 +1,9 @@
+*.wav
+*.mp3
+*.m4a
+*.ogg
+*.flac
+*.aac
+*.wma
+.env
+.venv

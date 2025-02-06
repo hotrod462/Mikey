@@ -20,14 +20,11 @@ class AudioRecorder:
         self.p = None
         self.stream = None
 
-        # Commented out Groq client initialization temporarily
-        # api_key = os.getenv('GROQ_API_KEY')
-        # if not api_key:
-        #     raise ValueError("GROQ_API_KEY not found in environment variables")
-        # self.groq_client = Groq(
-        #     api_key=api_key,
-        #     base_url="https://api.groq.com/v1"
-        # )
+        # Initialize Groq client for transcription and text generation
+        api_key = os.getenv('GROQ_API_KEY')
+        if not api_key:
+            raise ValueError("GROQ_API_KEY not found in environment variables")
+        self.groq_client = Groq(api_key=api_key)
 
     def list_audio_devices(self):
         """List all available WASAPI loopback devices using absolute device indices."""
@@ -168,9 +165,68 @@ class AudioRecorder:
         return filename
 
     def transcribe_audio(self, audio_file):
-        """Temporarily disabled transcription functionality."""
-        print("Groq transcription functionality is temporarily disabled.")
-        return "Transcription functionality is disabled."
+        """Transcribe recorded audio using the Groq whisper-large-v3-turbo model."""
+        with open(audio_file, "rb") as f:
+            audio_data = f.read()
+        print("Transcribing audio using Groq whisper-large-v3-turbo model...")
+        try:
+            response = self.groq_client.audio.transcriptions.create(
+                file=(audio_file, audio_data),
+                model="whisper-large-v3-turbo",
+                prompt="Transcribe the audio as accurately as possible.",
+                response_format="json",
+                language="en",
+                temperature=0.0
+            )
+            # Assuming the response contains a `.text` attribute with the transcription.
+            transcription = response.text
+            print("Transcription complete.")
+        except Exception as e:
+            transcription = f"Transcription error: {e}"
+        return transcription
+
+    def save_transcription_as_md(self, transcription, md_filename=None):
+        """
+        Save the transcription text to a markdown (.md) file.
+        If md_filename is not provided, a default file name is generated using the current timestamp.
+        """
+        if not md_filename:
+            md_filename = f"transcription_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+        with open(md_filename, "w", encoding="utf-8") as file:
+            file.write("# Transcription\n\n")
+            file.write(transcription)
+        print(f"Transcription saved as {md_filename}")
+        return md_filename
+
+    def make_meeting_notes(self, transcription, notes_md_filename=None):
+        """
+        Generate meeting notes from the transcribed text using the Groq llama3.370b versatile model,
+        and save them to a markdown (.md) file.
+        """
+        print("Generating meeting notes using Groq llama3.370b versatile model...")
+        prompt = (
+            "Based on the following transcription, generate concise meeting notes including key discussion points, "
+            "decisions, and action items:\n\n"
+            f"{transcription}"
+        )
+        try:
+            response = self.groq_client.text.completions.create(
+                prompt=prompt,
+                model="llama3.3-70b-versatile",     
+                temperature=0.0
+            )
+            meeting_notes = response.text
+            print("Meeting notes generated successfully.")
+        except Exception as e:
+            meeting_notes = f"Meeting notes generation error: {e}"
+        
+        if not notes_md_filename:
+            notes_md_filename = f"meeting_notes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+        with open(notes_md_filename, "w", encoding="utf-8") as file:
+            file.write("# Meeting Notes\n\n")
+            file.write(meeting_notes)
+        print(f"Meeting notes saved as {notes_md_filename}")
+        return meeting_notes
 
 
 def main():
@@ -208,6 +264,13 @@ def main():
     if transcription:
         print("\nTranscription:")
         print(transcription)
+        # Save the transcription to a markdown file
+        recorder.save_transcription_as_md(transcription)
+        
+        print("Generating meeting notes from transcription...")
+        meeting_notes = recorder.make_meeting_notes(transcription)
+        print("\nMeeting Notes:")
+        print(meeting_notes)
 
 
 if __name__ == "__main__":
