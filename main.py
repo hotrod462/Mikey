@@ -11,6 +11,54 @@ def wait_for_enter():
     input("Press Enter to stop recording...\n")
 
 
+def merge_transcriptions(system_segments, mic_segments):
+    """
+    Merge transcription segments from system (device) audio and microphone audio into a single transcript.
+    Each segment is tagged with a speaker label and sorted by start time.
+    Returns the merged transcript as a markdown-formatted string.
+    """
+    merged = []
+    for seg in system_segments:
+        merged.append({
+            "start": seg.get("start", 0),
+            "end": seg.get("end", 0),
+            "speaker": "Device",
+            "text": seg.get("text", "")
+        })
+    for seg in mic_segments:
+        merged.append({
+            "start": seg.get("start", 0),
+            "end": seg.get("end", 0),
+            "speaker": "Mic",
+            "text": seg.get("text", "")
+        })
+    
+    # Sort all segments by the start time
+    merged_sorted = sorted(merged, key=lambda x: x["start"])
+    
+    def format_time(seconds):
+        m, s = divmod(int(seconds), 60)
+        return f"{m:02d}:{s:02d}"
+    
+    transcript_md = "# Merged Conversation Transcript\n\n"
+    for seg in merged_sorted:
+        transcript_md += f"[{format_time(seg['start'])} - {format_time(seg['end'])}] {seg['speaker']}: {seg['text']}\n\n"
+    return transcript_md
+
+
+def ensure_dict(segment):
+    """
+    Ensure that the transcription segment is a dictionary.
+    If it is not, attempt to convert it using the __dict__ attribute.
+    """
+    if isinstance(segment, dict):
+        return segment
+    try:
+        return segment.__dict__
+    except Exception as e:
+        return {"start": 0, "end": 0, "text": str(segment)}
+
+
 def main():
     # Create an AudioRecorder instance
     recorder = AudioRecorder()
@@ -85,33 +133,47 @@ def main():
     print(f"System audio saved as: {system_file}")
     print(f"Microphone audio saved as: {mic_file}")
     
-    # Initialize AudioTranscriber for transcription tasks
-    transcriber = AudioTranscriber(session_folder)
+    # Flag to enable transcription for testing purposes
+    ENABLE_TRANSCRIPTION = True
     
-    print("\nTranscribing system audio...")
-    system_transcription = transcriber.transcribe_audio(system_file)
-    print("\nTranscribing microphone audio...")
-    mic_transcription = transcriber.transcribe_audio(mic_file)
-    
-    if system_transcription:
-        print("\nSystem Audio Transcription:")
-        print(system_transcription)
+    if ENABLE_TRANSCRIPTION:
+        # Initialize AudioTranscriber for transcription tasks
+        transcriber = AudioTranscriber(session_folder)
+        
+        print("\nTranscribing system audio with timestamps...")
+        system_transcription = transcriber.transcribe_audio(system_file, with_timestamps=True)
+        print("\nTranscribing microphone audio with timestamps...")
+        mic_transcription = transcriber.transcribe_audio(mic_file, with_timestamps=True)
+        
+        # If transcriptions are not in list form (due to an error), wrap them in a list for consistency
+        if not isinstance(system_transcription, list):
+            system_transcription = [{"start": 0, "end": 0, "text": system_transcription}]
+        if not isinstance(mic_transcription, list):
+            mic_transcription = [{"start": 0, "end": 0, "text": mic_transcription}]
+        
+        # Ensure each segment is a dictionary (in case the API returns custom objects)
+        system_transcription = [ensure_dict(seg) for seg in system_transcription]
+        mic_transcription = [ensure_dict(seg) for seg in mic_transcription]
+        
+        print("\nSystem Audio Transcription (with timestamps):")
+        for seg in system_transcription:
+            print(f"[{seg.get('start', 0):.2f} - {seg.get('end', 0):.2f}] {seg.get('text', '')}")
         transcriber.save_transcription_as_md(system_transcription, os.path.join(session_folder, "system_transcription.md"))
         
-        print("\nGenerating meeting notes from system audio transcription...")
-        system_notes = transcriber.make_meeting_notes(system_transcription, os.path.join(session_folder, "system_meeting_notes.md"))
-        print("\nSystem Audio Meeting Notes:")
-        print(system_notes)
-    
-    if mic_transcription:
-        print("\nMicrophone Audio Transcription:")
-        print(mic_transcription)
+        print("\nMicrophone Audio Transcription (with timestamps):")
+        for seg in mic_transcription:
+            print(f"[{seg.get('start', 0):.2f} - {seg.get('end', 0):.2f}] {seg.get('text', '')}")
         transcriber.save_transcription_as_md(mic_transcription, os.path.join(session_folder, "mic_transcription.md"))
         
-        print("\nGenerating meeting notes from microphone transcription...")
-        mic_notes = transcriber.make_meeting_notes(mic_transcription, os.path.join(session_folder, "mic_meeting_notes.md"))
-        print("\nMicrophone Audio Meeting Notes:")
-        print(mic_notes)
+        # Merge the two transcripts into one conversation transcript file
+        merged_transcript = merge_transcriptions(system_transcription, mic_transcription)
+        merged_md_filename = os.path.join(session_folder, "merged_transcript.md")
+        with open(merged_md_filename, "w", encoding="utf-8") as f:
+            f.write(merged_transcript)
+        print(f"\nMerged conversation transcript saved as: {merged_md_filename}")
+    
+    else:
+        print("\nTranscription is currently disabled.")
 
 
 if __name__ == '__main__':
