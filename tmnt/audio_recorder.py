@@ -145,9 +145,21 @@ class AudioRecorder:
         print("Profile switch complete.")
 
     def _record_stream(self, device_index, format, channels, rate, queue, stream_type):
-        frames = []
+        """
+        Modified _record_stream method with periodic flushing.
+        This method records audio from a given device and, every `flush_interval` seconds,
+        writes the current frames to a temporary file in the session folder. 
+        At the end of the recording, all segments are merged and the temporary files are removed.
+        """
+        import time  # ensure time is imported here if not already
+
+        segment_files = []         # List to store flushed segment file names.
+        current_frames = []        # Buffer to accumulate frames between flushes.
+        flush_interval = 60        # Flush every 60 seconds. Adjust as needed.
+        last_flush_time = time.time()
+
         try:
-            # Use a smaller chunk size for system audio if desired.
+            # Choose a smaller chunk size for system audio if desired.
             chunk_size = 1024 if stream_type == "system audio" else self.CHUNK
 
             # Build stream keyword arguments.
@@ -159,21 +171,57 @@ class AudioRecorder:
                 "input_device_index": device_index,
                 "frames_per_buffer": chunk_size
             }
-          
 
-            # Open the stream using the shared PyAudio instance (self.p)
+            # Open the stream using the shared PyAudio instance (self.p).
             stream = self.p.open(**stream_kwargs)
             print(f"Started recording {stream_type}")
             while self.is_recording:
                 try:
+                    # Read and buffer the incoming audio frames.
                     data = stream.read(chunk_size, exception_on_overflow=False)
-                    frames.append(data)
+                    current_frames.append(data)
+                    
+                    # Check if it's time to flush the buffer to disk.
+                    if time.time() - last_flush_time >= flush_interval:
+                        # Construct a temporary filename.
+                        segment_filename = f"temp_{stream_type}_{int(time.time())}.raw"
+                        full_path = os.path.join(self.session_folder, segment_filename)
+                        # Write the buffered data to disk.
+                        with open(full_path, "wb") as f:
+                            f.write(b"".join(current_frames))
+                        segment_files.append(full_path)
+                        print(f"Flushed {stream_type} segment to {full_path}")
+                        # Clear the in-memory buffer and update the last flush time.
+                        current_frames = []
+                        last_flush_time = time.time()
                 except Exception as e:
                     print(f"Error reading from {stream_type}: {e}")
-                    break
+                    break  # Exit loop if there is a read error.
+
+            # After the recording stops, flush any remaining frames.
+            if current_frames:
+                segment_filename = f"temp_{stream_type}_{int(time.time())}.raw"
+                full_path = os.path.join(self.session_folder, segment_filename)
+                with open(full_path, "wb") as f:
+                    f.write(b"".join(current_frames))
+                segment_files.append(full_path)
+                print(f"Flushed final {stream_type} segment to {full_path}")
+
             stream.stop_stream()
             stream.close()
-            queue.put((frames, rate, channels, format))
+
+            # Merge all flushed segments into a single buffer.
+            merged_frames = b"".join([open(seg, "rb").read() for seg in segment_files])
+
+            # Optionally clean up the temporary segment files.
+            for seg in segment_files:
+                try:
+                    os.remove(seg)
+                except Exception as ee:
+                    print(f"Could not remove temporary file {seg}: {ee}")
+
+            # Pass a list with the merged buffer to the processing function.
+            queue.put(([merged_frames], rate, channels, format))
             print(f"Finished recording {stream_type}")
         except Exception as e:
             print(f"Error setting up {stream_type} stream: {e}")
