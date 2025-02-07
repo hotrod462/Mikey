@@ -1,15 +1,34 @@
 import sys
 import threading
 import os
-from PyQt5 import QtWidgets
+from PyQt5 import QtWidgets, QtCore, QtGui
 from core.audio_session import RecordingSession
+from gui.recordings_window import RecordingsWindow  # Import the new recordings window
+
+class TranscriptionWorker(QtCore.QThread):
+    # This signal will emit the transcription result (a dict) back to the GUI.
+    transcription_done = QtCore.pyqtSignal(dict)
+
+    def __init__(self, session):
+        super().__init__()
+        self.session = session
+
+    def run(self):
+        # This call runs in a separate thread so it won't freeze the UI.
+        result = self.session.transcribe()
+        self.transcription_done.emit(result)
+
 
 class AudioRecorderGUI(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Audio Recorder App")
-        self.session = None
+        # Set the favicon for your main window.
+        self.setWindowIcon(QtGui.QIcon("resources/favicon.ico"))
+        self.session = None       # Instance of RecordingSession
         self.recording_thread = None
+        self.transcription_worker = None  # Worker for transcription
+        self.recordings_window = None       # Instance of the recordings browser window
         self._setup_ui()
         self._load_audio_devices()
 
@@ -27,7 +46,7 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
         self.mic_combo = QtWidgets.QComboBox()
         layout.addWidget(self.mic_combo)
 
-        # Start and Stop buttons.
+        # Buttons for controlling recording.
         btn_layout = QtWidgets.QHBoxLayout()
         self.start_button = QtWidgets.QPushButton("Start Recording")
         self.start_button.clicked.connect(self.start_recording)
@@ -39,13 +58,18 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
         btn_layout.addWidget(self.stop_button)
         layout.addLayout(btn_layout)
 
+        # Additional button for opening the recordings browser window.
+        self.recordings_button = QtWidgets.QPushButton("Show Recordings")
+        self.recordings_button.clicked.connect(self.show_recordings_window)
+        layout.addWidget(self.recordings_button)
+
         # Log output text area.
         self.log_text = QtWidgets.QTextEdit()
         self.log_text.setReadOnly(True)
         layout.addWidget(self.log_text)
 
     def _load_audio_devices(self):
-        # Use AudioRecorder from tmnt to list devices.
+        # Use AudioRecorder to list devices.
         from tmnt.audio_recorder import AudioRecorder
         recorder = AudioRecorder()
         devices = recorder.list_audio_devices()
@@ -66,7 +90,7 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
         self.session = RecordingSession(system_index, mic_index)
         self._log(f"Session folder: {self.session.session_folder}")
 
-        # Start recording on a separate thread.
+        # Start recording in a separate Python thread.
         self.recording_thread = threading.Thread(target=self.session.record)
         self.recording_thread.start()
         self._log("Recording started...")
@@ -76,14 +100,20 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
     def stop_recording(self):
         self._log("Stopping recording...")
         if self.session:
-            # Signal the session to stop recording.
             self.session.stop()
         if self.recording_thread:
             self.recording_thread.join()
         self._log("Recording stopped.")
 
-        # Perform transcription.
-        result = self.session.transcribe()
+        # Start transcription in a separate QThread to avoid blocking the UI.
+        self.transcription_worker = TranscriptionWorker(self.session)
+        self.transcription_worker.transcription_done.connect(self.handle_transcription_done)
+        self.transcription_worker.start()
+
+        self.start_button.setEnabled(True)
+        self.stop_button.setEnabled(False)
+
+    def handle_transcription_done(self, result):
         if result:
             merged_transcript = result["merged"]
             merged_path = os.path.join(self.session.session_folder, "merged_transcript.md")
@@ -93,8 +123,12 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
         else:
             self._log("Transcription skipped or failed.")
 
-        self.start_button.setEnabled(True)
-        self.stop_button.setEnabled(False)
+    def show_recordings_window(self):
+        # Open the recordings browser window.
+        if self.recordings_window is None:
+            self.recordings_window = RecordingsWindow(recordings_path="recordings")
+        self.recordings_window.show()
+        self.recordings_window.raise_()  # Bring window to the front
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
