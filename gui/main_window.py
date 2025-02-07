@@ -70,7 +70,7 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
 
     def _load_audio_devices(self):
         # Use AudioRecorder to list devices.
-        from tmnt.audio_recorder import AudioRecorder
+        from mikey.audio_recorder import AudioRecorder
         recorder = AudioRecorder()
         devices = recorder.list_audio_devices()
         self.system_combo.clear()

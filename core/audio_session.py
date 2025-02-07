@@ -2,8 +2,8 @@ import os
 import threading
 from datetime import datetime
 
-from tmnt.audio_recorder import AudioRecorder
-from tmnt.audio_transcriber import AudioTranscriber
+from mikey.audio_recorder import AudioRecorder
+from mikey.audio_transcriber import AudioTranscriber
 
 def merge_transcriptions(system_segments, mic_segments):
     """

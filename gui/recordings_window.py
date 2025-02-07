@@ -4,9 +4,9 @@ from PyQt5 import QtWidgets, QtCore, QtGui
 class RecordingsWindow(QtWidgets.QMainWindow):
     def __init__(self, recordings_path="recordings", parent=None):
         super().__init__(parent)
+        self.recordings_path = recordings_path
         self.setWindowTitle("Recordings Browser")
         self.setWindowIcon(QtGui.QIcon("resources/favicon.ico"))
-        self.recordings_path = recordings_path
         self.resize(800, 600)
         
         # Create a horizontal splitter for two panels.
@@ -18,11 +18,26 @@ class RecordingsWindow(QtWidgets.QMainWindow):
         self.list_widget.itemClicked.connect(self.load_transcript)
         self.splitter.addWidget(self.list_widget)
         
-        # Right panel: a QTextEdit that displays the transcript.
+        # Right panel: create a widget with vertical layout for search bar and transcript display.
+        self.right_panel = QtWidgets.QWidget()
+        self.right_layout = QtWidgets.QVBoxLayout(self.right_panel)
+        
+        # Search bar (QLineEdit and Search button)
+        self.search_layout = QtWidgets.QHBoxLayout()
+        self.search_field = QtWidgets.QLineEdit()
+        self.search_field.setPlaceholderText("Search transcript...")
+        self.search_button = QtWidgets.QPushButton("Search")
+        self.search_button.clicked.connect(self.search_transcript)
+        self.search_layout.addWidget(self.search_field)
+        self.search_layout.addWidget(self.search_button)
+        self.right_layout.addLayout(self.search_layout)
+
+        # Transcript text area
         self.transcript_text = QtWidgets.QTextEdit()
         self.transcript_text.setReadOnly(True)
-        self.splitter.addWidget(self.transcript_text)
+        self.right_layout.addWidget(self.transcript_text)
         
+        self.splitter.addWidget(self.right_panel)
         self.setCentralWidget(self.splitter)
         
         # Populate the list with session folder names.
@@ -48,8 +63,8 @@ class RecordingsWindow(QtWidgets.QMainWindow):
         
     def load_transcript(self, item):
         """
-        When a timestamp is selected, this method loads the transcript text from
-        merged_transcript.md in that folder and displays it on the right.
+        When a timestamp is selected, load the transcript text from
+        merged_transcript.md in that folder and display it on the right.
         """
         recording_folder = os.path.join(self.recordings_path, item.text())
         transcript_path = os.path.join(recording_folder, "merged_transcript.md")
@@ -60,3 +75,32 @@ class RecordingsWindow(QtWidgets.QMainWindow):
             self.transcript_text.setPlainText(content)
         else:
             self.transcript_text.setPlainText("No transcript available for this recording.")
+        
+        # Clear any previous search highlights.
+        self.transcript_text.setExtraSelections([])
+    
+    def search_transcript(self):
+        """
+        Highlight all occurrences of the search query in the transcript text.
+        """
+        query = self.search_field.text()
+        extraSelections = []
+        
+        if not query:
+            self.transcript_text.setExtraSelections(extraSelections)
+            return
+        
+        # Start at the beginning of the document.
+        cursor = self.transcript_text.textCursor()
+        cursor.movePosition(QtGui.QTextCursor.Start)
+        
+        while True:
+            cursor = self.transcript_text.document().find(query, cursor)
+            if cursor.isNull():
+                break
+            selection = QtWidgets.QTextEdit.ExtraSelection()
+            selection.cursor = cursor
+            selection.format.setBackground(QtGui.QColor("yellow"))
+            extraSelections.append(selection)
+        
+        self.transcript_text.setExtraSelections(extraSelections)
