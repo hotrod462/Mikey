@@ -63,7 +63,7 @@ class AudioTranscriber:
             contents = [prompt] + audio_file_objs
 
             response = self.gemini_client.models.generate_content(
-                model="gemini-1.5-pro",
+                model="gemini-2.0-flash",
                 contents=contents
             )
             transcription = response.text
