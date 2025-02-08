@@ -72,21 +72,12 @@ class AudioTranscriber:
             transcription = f"Transcription error: {e}"
         return transcription
 
-    def save_transcription_as_md(self, transcription, md_filename=None):
-        """Save the transcription text to a markdown file."""
-        folder = self.session_folder
-        if not md_filename:
-            md_filename = os.path.join(folder, "transcription.md")
-        with open(md_filename, "w", encoding="utf-8") as file:
-            file.write("# Transcription\n\n")
-            # Write the whole transcription text directly
-            file.write(transcription)
-        print(f"Transcription saved as {md_filename}")
-        return md_filename
-
     def make_meeting_notes(self, transcription, notes_md_filename=None):
-        """Generate meeting notes from the transcription using the Groq llama-3.3-70b versatile model."""
-        print("Generating meeting notes using Groq llama-3.3-70b versatile model...")
+        """
+        Generate meeting notes from the transcription using the Google Gemini model.
+        The function now only returns the meeting notes without saving them to disk.
+        """
+        print("Generating meeting notes using Google Gemini model...")
         if isinstance(transcription, list):
             try:
                 transcription_text = "\n".join([seg.text for seg in transcription])
@@ -94,25 +85,22 @@ class AudioTranscriber:
                 transcription_text = "\n".join([seg.get("text", "") for seg in transcription])
         else:
             transcription_text = transcription
-        messages = [
-            {"role": "system", "content": "You are a meeting notes assistant."},
-            {"role": "user", "content": f"Based on the following transcription, generate concise meeting notes including key discussion points, decisions, and action items:\n\n{transcription_text}"}
-        ]
+
+        prompt = (
+            "You are a meeting notes assistant. Based on the following transcription, generate concise meeting notes "
+            "including key discussion points, decisions, and action items:\n\n"
+            f"{transcription_text}"
+        )
+
         try:
-            response = self.groq_client.chat.completions.create(
-                messages=messages,
-                model="llama-3.3-70b-versatile",
-                temperature=0.0
+            response = self.gemini_client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[prompt]
             )
-            meeting_notes = response.choices[0].message.content
+            meeting_notes = response.text
             print("Meeting notes generated successfully.")
         except Exception as e:
             meeting_notes = f"Meeting notes generation error: {e}"
-        folder = self.session_folder
-        if not notes_md_filename:
-            notes_md_filename = os.path.join(folder, "meeting_notes.md")
-        with open(notes_md_filename, "w", encoding="utf-8") as file:
-            file.write("# Meeting Notes\n\n")
-            file.write(meeting_notes)
-        print(f"Meeting notes saved as {notes_md_filename}")
+        
+        # Removed the file-saving code here since saving is now handled via core/utils.py.
         return meeting_notes
