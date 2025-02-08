@@ -77,17 +77,30 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
         self.system_combo.clear()
         self.mic_combo.clear()
 
-        loopback_index = None  # Will store the index of the first device with "Loopback" in its name
+        system_default_index = None  # Index of first device with "Loopback" in its name for system audio.
+        mic_default_index = None     # Index of first device that is NOT a loopback and does NOT have "Microphone Array".
+
         for i, device in enumerate(devices):
-            display = f"{device['name']} (index: {device['index']})"
+            name = device['name']
+            display = f"{name} (index: {device['index']})"
             self.system_combo.addItem(display, device['index'])
             self.mic_combo.addItem(display, device['index'])
-            if loopback_index is None and "Loopback" in device['name']:
-                loopback_index = i
+            
+            # Set the system default to the first device with "Loopback" in its name.
+            if system_default_index is None and "Loopback" in name:
+                system_default_index = i
+            
+            # Set the mic (headphones) default to the first non-loopback device that doesn't have "Microphone Array" in its name.
+            if mic_default_index is None and "Loopback" not in name and "Microphone Array" not in name:
+                mic_default_index = i
 
-        # If a Loopback device was found, set it as the current selection.
-        if loopback_index is not None:
-            self.system_combo.setCurrentIndex(loopback_index)
+        # If a preferred system audio device was found, select it.
+        if system_default_index is not None:
+            self.system_combo.setCurrentIndex(system_default_index)
+        
+        # If a preferred mic device was found, select it.
+        if mic_default_index is not None:
+            self.mic_combo.setCurrentIndex(mic_default_index)
 
     def _log(self, message):
         self.log_text.append(message)
