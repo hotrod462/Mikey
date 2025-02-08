@@ -86,24 +86,17 @@ class RecordingSession:
     def transcribe(self, enable_transcription=True):
         """
         Perform transcription on the recorded files using AudioTranscriber.
-        Returns a dictionary with system, mic, and merged transcriptions.
-        Transcriptions are handled by Google Gemini and are returned as a complete text block.
+        Returns a dictionary with the merged transcription.
+        Transcriptions are handled by Google Gemini and are returned as a complete unified text block.
         """
         if not enable_transcription or not self.files:
             return None
 
         system_file, mic_file = self.files
         transcriber = AudioTranscriber(self.session_folder)
-        system_transcription_text = transcriber.transcribe_audio(system_file, with_timestamps=True)
-        mic_transcription_text = transcriber.transcribe_audio(mic_file, with_timestamps=True)
+        # Pass both system and mic recordings together in one API call.
+        merged_transcription_text = transcriber.transcribe_audio([system_file, mic_file], with_timestamps=True)
 
-        # Wrap each full-text transcription in a segment with default timestamps.
-        system_segment = {"start": 0, "end": 0, "text": system_transcription_text}
-        mic_segment = {"start": 0, "end": 0, "text": mic_transcription_text}
-
-        merged = merge_transcriptions([system_segment], [mic_segment])
         return {
-            "system": system_segment,
-            "mic": mic_segment,
-            "merged": merged
+            "merged": merged_transcription_text
         }

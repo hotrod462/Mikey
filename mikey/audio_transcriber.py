@@ -25,31 +25,44 @@ class AudioTranscriber:
     def transcribe_audio(self, audio_file, with_timestamps=True):
         """
         Transcribe recorded audio using the Google Gemini gemini-2.0-flash model.
-        
+
+        Accepts either a single audio file path (as a string) or a list of audio file paths.
         If with_timestamps is False, returns the transcription text.
         If with_timestamps is True, includes timestamps in the transcript.
         """
         try:
-            print("Uploading audio file for transcription using Gemini model...")
-            # Use the Google Generative AI file upload method.
-            audio_file_obj = self.gemini_client.files.upload(
-                file=f"{audio_file}",
-                # mime_type="audio/wav",  # Adjust as necessary (e.g., "audio/mp3" if needed)
-                # display_name=Path(audio_file).stem  # File name (without extension)
-            )
-
+            print("Uploading audio file(s) for transcription using Gemini model...")
+            
+            # Check if audio_file is a list (multiple files) or a single file.
+            if isinstance(audio_file, list):
+                audio_file_objs = []
+                for af in audio_file:
+                    audio_file_obj = self.gemini_client.files.upload(
+                        file=f"{af}"
+                    )
+                    audio_file_objs.append(audio_file_obj)
+            else:
+                audio_file_objs = [self.gemini_client.files.upload(
+                    file=f"{audio_file}"
+                )]
 
             if with_timestamps:
                 prompt = (
                     "Generate a transcript of the speech with timestamps indicating "
-                    "the start and end times for each segment."
+                    "the start and end times for each segment with the speaker's name.eg: [00:00:00] - [00:01:00] -Mike: This is a test. "
+                    "IMPORTANT: Do not include any other text in your response except the timestamps and the text of the transcript."
                 )
             else:
+
                 prompt = "Generate a transcript of the speech."
+
+
+            # Combine the prompt with the audio file object(s).
+            contents = [prompt] + audio_file_objs
 
             response = self.gemini_client.models.generate_content(
                 model="gemini-2.0-flash",
-                contents=[prompt, audio_file_obj]
+                contents=contents
             )
             transcription = response.text
             print("Transcription complete.")
