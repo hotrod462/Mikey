@@ -2,6 +2,8 @@ import os
 from groq import Groq
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
+from pathlib import Path
 
 
 class AudioTranscriber:
@@ -18,16 +20,24 @@ class AudioTranscriber:
         # Initialize Google Gemini client for audio transcription.
         self.gemini_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
 
+
+
     def transcribe_audio(self, audio_file, with_timestamps=True):
         """
         Transcribe recorded audio using the Google Gemini gemini-2.0-flash model.
         
-        If with_timestamps is False (default), returns the transcription text.
+        If with_timestamps is False, returns the transcription text.
         If with_timestamps is True, includes timestamps in the transcript.
         """
         try:
             print("Uploading audio file for transcription using Gemini model...")
-            myfile = self.gemini_client.files.upload(path=audio_file)
+            # Use the Google Generative AI file upload method.
+            audio_file_obj = self.gemini_client.files.upload(
+                file=f"{audio_file}",
+                # mime_type="audio/wav",  # Adjust as necessary (e.g., "audio/mp3" if needed)
+                # display_name=Path(audio_file).stem  # File name (without extension)
+            )
+
 
             if with_timestamps:
                 prompt = (
@@ -39,10 +49,7 @@ class AudioTranscriber:
 
             response = self.gemini_client.models.generate_content(
                 model="gemini-2.0-flash",
-                contents=[
-                    prompt,
-                    myfile
-                ]
+                contents=[prompt, audio_file_obj]
             )
             transcription = response.text
             print("Transcription complete.")
