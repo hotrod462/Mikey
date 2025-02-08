@@ -4,6 +4,7 @@ import os
 from PyQt5 import QtWidgets, QtCore, QtGui
 from core.audio_session import RecordingSession
 from gui.recordings_window import RecordingsWindow  # Import the new recordings window
+from core.utils import get_base_path
 
 class TranscriptionWorker(QtCore.QThread):
     # This signal will emit the transcription result (a dict) back to the GUI.
@@ -125,9 +126,11 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
             self._log("Transcription skipped or failed.")
 
     def show_recordings_window(self):
-        # Open the recordings browser window.
+        base_path = get_base_path()
+        recordings_path = os.path.join(base_path, "recordings")
+        
         if self.recordings_window is None:
-            self.recordings_window = RecordingsWindow(recordings_path="recordings")
+            self.recordings_window = RecordingsWindow(recordings_path=recordings_path)
         self.recordings_window.show()
         self.recordings_window.raise_()  # Bring window to the front
 

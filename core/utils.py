@@ -1,4 +1,5 @@
 import os
+import sys
 
 def save_transcripts(session_folder, transcripts):
     """
@@ -29,4 +30,19 @@ def save_transcripts(session_folder, transcripts):
         f.write(transcripts["mic"])
     paths["mic"] = mic_path
 
-    return paths 
+    return paths
+
+def get_base_path():
+    """
+    Returns the base path for the application.
+
+    This function checks if the application is running as a bundled executable.
+    If it is (i.e., if sys.frozen is true), it returns the directory of the executable.
+    Otherwise, it returns the directory of the current file.
+
+    Returns:
+        str: The base path to use for loading resources.
+    """
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(__file__) 
