@@ -115,11 +115,12 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
 
     def handle_transcription_done(self, result):
         if result:
-            merged_transcript = result["merged"]
-            merged_path = os.path.join(self.session.session_folder, "merged_transcript.md")
-            with open(merged_path, "w", encoding="utf-8") as f:
-                f.write(merged_transcript)
-            self._log(f"Transcription complete and saved as: {merged_path}")
+            from core.utils import save_transcripts
+            saved_paths = save_transcripts(self.session.session_folder, result)
+            self._log("Transcription complete and saved as:")
+            self._log(f"Merged: {saved_paths['merged']}")
+            self._log(f"System: {saved_paths['system']}")
+            self._log(f"Mic: {saved_paths['mic']}")
         else:
             self._log("Transcription skipped or failed.")
 
