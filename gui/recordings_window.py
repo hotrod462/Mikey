@@ -1,5 +1,6 @@
 import os
 from PyQt5 import QtWidgets, QtCore, QtGui
+from core.utils import get_base_path
 
 class RegenerateTranscriptWorker(QtCore.QThread):
     transcription_done = QtCore.pyqtSignal(dict)
@@ -18,27 +19,37 @@ class RegenerateTranscriptWorker(QtCore.QThread):
 
 
 class RecordingsWindow(QtWidgets.QMainWindow):
-    def __init__(self, recordings_path="recordings", parent=None):
+    def __init__(self, recordings_path=None, parent=None):
         super().__init__(parent)
+        
+        # Use the application's base path from utils.py.
+        base_dir = get_base_path()
+        
+        # If no recordings_path is provided, default to a "recordings" subfolder in base_dir.
+        if recordings_path is None:
+            recordings_path = os.path.join(base_dir, "recordings")
         self.recordings_path = recordings_path
+
         self.setWindowTitle("Recordings Browser")
-        self.setWindowIcon(QtGui.QIcon("resources/favicon.ico"))
+        # Build the absolute path for the favicon icon.
+        icon_path = os.path.join(base_dir, "resources", "favicon.ico")
+        self.setWindowIcon(QtGui.QIcon(icon_path))
         self.resize(800, 600)
         
         # Create a horizontal splitter for two panels.
         self.splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
         
-        # Left panel: a QListWidget showing just the timestamp (folder name) of each recording.
+        # Left panel: a QListWidget displaying recording session folder names.
         self.list_widget = QtWidgets.QListWidget()
         self.list_widget.setFixedWidth(200)
         self.list_widget.itemClicked.connect(self.load_transcript)
         self.splitter.addWidget(self.list_widget)
         
-        # Right panel: create a widget with vertical layout for search bar and transcript display.
+        # Right panel: a widget with vertical layout for search bar and transcript display.
         self.right_panel = QtWidgets.QWidget()
         self.right_layout = QtWidgets.QVBoxLayout(self.right_panel)
         
-        # Search bar (QLineEdit, Search button, and Regenerate Transcript button)
+        # Search bar layout (includes a QLineEdit, a Search button, and a Regenerate Transcript button)
         self.search_layout = QtWidgets.QHBoxLayout()
         self.search_field = QtWidgets.QLineEdit()
         self.search_field.setPlaceholderText("Search transcript...")
@@ -47,14 +58,14 @@ class RecordingsWindow(QtWidgets.QMainWindow):
         self.search_layout.addWidget(self.search_field)
         self.search_layout.addWidget(self.search_button)
         
-        # Regenerate Transcript Button
+        # Regenerate Transcript Button.
         self.regenerate_button = QtWidgets.QPushButton("Regenerate Transcript")
         self.regenerate_button.clicked.connect(self.regenerate_transcript)
         self.search_layout.addWidget(self.regenerate_button)
         
         self.right_layout.addLayout(self.search_layout)
 
-        # Transcript text area
+        # Transcript text area.
         self.transcript_text = QtWidgets.QTextEdit()
         self.transcript_text.setReadOnly(True)
         self.right_layout.addWidget(self.transcript_text)
@@ -71,16 +82,14 @@ class RecordingsWindow(QtWidgets.QMainWindow):
     def populate_list(self):
         """
         Populate the left panel list with directory names from the recordings_path.
-        It assumes that each subdirectory is a recording session identified by a timestamp.
+        Each subdirectory is assumed to be a recording session.
         """
         if not os.path.exists(self.recordings_path):
             return
         
-        # List only directories (recording sessions)
-        dirs = [
-            d for d in os.listdir(self.recordings_path)
-            if os.path.isdir(os.path.join(self.recordings_path, d))
-        ]
+        # List only directories (recording sessions).
+        dirs = [d for d in os.listdir(self.recordings_path) 
+                if os.path.isdir(os.path.join(self.recordings_path, d))]
         dirs.sort(reverse=True)  # Newest recordings first.
         
         self.list_widget.clear()
@@ -90,8 +99,7 @@ class RecordingsWindow(QtWidgets.QMainWindow):
         
     def load_transcript(self, item):
         """
-        When a timestamp is selected, load the transcript text from
-        merged_transcript.md in that folder and display it on the right.
+        Load the transcript text from "system_transcript.md" in the selected session folder.
         """
         recording_folder = os.path.join(self.recordings_path, item.text())
         transcript_path = os.path.join(recording_folder, "system_transcript.md")
@@ -135,7 +143,6 @@ class RecordingsWindow(QtWidgets.QMainWindow):
     def regenerate_transcript(self):
         """
         Regenerate the transcript from the source audio files in the selected session folder.
-        Uses the shared utility function to save the merged, system, and mic transcripts to separate markdown files.
         """
         selected_items = self.list_widget.selectedItems()
         if not selected_items:
@@ -165,11 +172,14 @@ class RecordingsWindow(QtWidgets.QMainWindow):
             from core.utils import save_transcripts
             saved_paths = save_transcripts(os.path.join(self.recordings_path, session_item.text()), result)
             self.load_transcript(session_item)
-            QtWidgets.QMessageBox.information(self, "Success", 
+            QtWidgets.QMessageBox.information(
+                self,
+                "Success", 
                 "Transcript regenerated successfully.\n" +
                 f"Merged: {saved_paths['merged']}\n" +
                 f"System: {saved_paths['system']}\n" +
-                f"Mic: {saved_paths['mic']}")
+                f"Mic: {saved_paths['mic']}"
+            )
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Error", f"Failed to save transcripts: {e}")
     

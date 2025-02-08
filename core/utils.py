@@ -36,13 +36,10 @@ def get_base_path():
     """
     Returns the base path for the application.
 
-    This function checks if the application is running as a bundled executable.
-    If it is (i.e., if sys.frozen is true), it returns the directory of the executable.
-    Otherwise, it returns the directory of the current file.
-
-    Returns:
-        str: The base path to use for loading resources.
+    When running in development (i.e., not as a frozen executable),
+    this returns the project root (the parent of the 'core' directory).
     """
     if getattr(sys, 'frozen', False):
         return os.path.dirname(sys.executable)
-    return os.path.dirname(__file__) 
+    # Go one directory up from the current file's directory.
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) 
