@@ -50,6 +50,7 @@ class AudioTranscriber:
                 prompt = (
                     "Generate a transcript of the speech with timestamps indicating "
                     "the start and end times for each segment with the speaker's name.eg: [HH:MM:SS] - [HH:MM:SS] -Mike: This is a test. "
+                    "do not transcribe filler words like 'um', 'like', 'you know', 'okay', 'mhm', etc."
                     "IMPORTANT: Do not include any other text in your response except the timestamps and the text of the transcript."
                 )
             else:
