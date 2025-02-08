@@ -76,10 +76,18 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
         devices = recorder.list_audio_devices()
         self.system_combo.clear()
         self.mic_combo.clear()
-        for device in devices:
+
+        loopback_index = None  # Will store the index of the first device with "Loopback" in its name
+        for i, device in enumerate(devices):
             display = f"{device['name']} (index: {device['index']})"
             self.system_combo.addItem(display, device['index'])
             self.mic_combo.addItem(display, device['index'])
+            if loopback_index is None and "Loopback" in device['name']:
+                loopback_index = i
+
+        # If a Loopback device was found, set it as the current selection.
+        if loopback_index is not None:
+            self.system_combo.setCurrentIndex(loopback_index)
 
     def _log(self, message):
         self.log_text.append(message)
