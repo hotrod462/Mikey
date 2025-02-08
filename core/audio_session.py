@@ -1,6 +1,7 @@
 import os
 import threading
 from datetime import datetime
+import re
 
 from mikey.audio_recorder import AudioRecorder
 from mikey.audio_transcriber import AudioTranscriber
@@ -51,6 +52,43 @@ def ensure_dict(segment):
     except Exception:
         return {"start": 0, "end": 0, "text": str(segment)}
 
+def convert_time_str_to_seconds(time_str):
+    """
+    Convert a time string in HH:MM:SS format to total seconds.
+    """
+    h, m, s = map(int, time_str.split(":"))
+    return h * 3600 + m * 60 + s
+
+def parse_transcript_text(transcript_text, default_speaker):
+    """
+    Parse a transcript text in markdown format into a list of segments.
+    Assumes each segment line is formatted as:
+    [HH:MM:SS] - [HH:MM:SS] - [OptionalSpeaker: ]Text
+    Returns a list of dictionaries with keys: start, end, speaker, text.
+    """
+    segments = []
+    lines = transcript_text.splitlines()
+    pattern = r"^\[(\d{2}:\d{2}:\d{2})\]\s*-\s*\[(\d{2}:\d{2}:\d{2})\]\s*(?:-\s*)?(?:(\w+):)?\s*(.+)$"
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = re.match(pattern, line)
+        if match:
+            start_str = match.group(1)
+            end_str = match.group(2)
+            # Override any speaker information with the provided default.
+            text = match.group(4)
+            start = convert_time_str_to_seconds(start_str)
+            end = convert_time_str_to_seconds(end_str)
+            segments.append({
+                "start": start,
+                "end": end,
+                "speaker": default_speaker,
+                "text": text
+            })
+    return segments
+
 class RecordingSession:
     def __init__(self, system_device_index, mic_device_index, base_folder="recordings"):
         self.system_device_index = system_device_index
@@ -86,17 +124,61 @@ class RecordingSession:
     def transcribe(self, enable_transcription=True):
         """
         Perform transcription on the recorded files using AudioTranscriber.
-        Returns a dictionary with the merged transcription.
-        Transcriptions are handled by Google Gemini and are returned as a complete unified text block.
+        Processes the transcription of the system (device) audio and mic audio in separate requests.
+        Parses each transcript based on timestamps and then stitches them together in a merged markdown transcript.
+        Returns a dictionary with the merged transcription as well as individual transcriptions.
         """
         if not enable_transcription or not self.files:
             return None
 
         system_file, mic_file = self.files
         transcriber = AudioTranscriber(self.session_folder)
-        # Pass both system and mic recordings together in one API call.
-        merged_transcription_text = transcriber.transcribe_audio([system_file, mic_file], with_timestamps=True)
+
+        # Transcribe each audio file separately.
+        system_transcription_text = transcriber.transcribe_audio(system_file, with_timestamps=True)
+        mic_transcription_text = transcriber.transcribe_audio(mic_file, with_timestamps=True)
+
+        # Parse the individual transcription texts into segments.
+        system_segments = parse_transcript_text(system_transcription_text, default_speaker="Device")
+        mic_segments = parse_transcript_text(mic_transcription_text, default_speaker="Mic")
+
+        # Merge the segments based on their timestamps.
+        merged_transcription_md = merge_transcriptions(system_segments, mic_segments)
 
         return {
-            "merged": merged_transcription_text
+            "merged": merged_transcription_md,
+            "system": system_transcription_text,
+            "mic": mic_transcription_text
         }
+
+    @classmethod
+    def from_existing_session(cls, session_folder, system_device_index=0, mic_device_index=0):
+        """
+        Create a RecordingSession instance from an existing session folder.
+        This method does not create a new session folder but sets up the instance using the provided folder.
+        It also attempts to auto-detect audio files in the folder and set them as the files attribute.
+        """
+        # Instantiate without creating a new folder.
+        obj = cls(system_device_index, mic_device_index, base_folder=os.path.dirname(session_folder))
+        obj.session_folder = session_folder
+        # Auto-detect audio files (excluding markdown files).
+        audio_files = [
+            os.path.join(session_folder, f)
+            for f in os.listdir(session_folder)
+            if os.path.isfile(os.path.join(session_folder, f)) and not f.endswith(".md")
+        ]
+        if len(audio_files) >= 2:
+            system_file = None
+            mic_file = None
+            for af in audio_files:
+                lower_af = af.lower()
+                if "mic" in lower_af:
+                    mic_file = af
+                elif "system" in lower_af or "device" in lower_af:
+                    system_file = af
+            if system_file is None or mic_file is None:
+                audio_files.sort()
+                system_file = audio_files[0]
+                mic_file = audio_files[1]
+            obj.files = (system_file, mic_file)
+        return obj

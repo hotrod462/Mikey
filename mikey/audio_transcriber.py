@@ -49,10 +49,11 @@ class AudioTranscriber:
             if with_timestamps:
                 prompt = (
                     "Generate a transcript of the speech with timestamps indicating "
-                    "the start and end times for each segment with the speaker's name.eg: [00:00:00] - [00:01:00] -Mike: This is a test. "
+                    "the start and end times for each segment with the speaker's name.eg: [HH:MM:SS] - [HH:MM:SS] -Mike: This is a test. "
                     "IMPORTANT: Do not include any other text in your response except the timestamps and the text of the transcript."
                 )
             else:
+
 
                 prompt = "Generate a transcript of the speech."
 
@@ -61,7 +62,7 @@ class AudioTranscriber:
             contents = [prompt] + audio_file_objs
 
             response = self.gemini_client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-1.5-pro",
                 contents=contents
             )
             transcription = response.text

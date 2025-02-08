@@ -22,7 +22,7 @@ class RecordingsWindow(QtWidgets.QMainWindow):
         self.right_panel = QtWidgets.QWidget()
         self.right_layout = QtWidgets.QVBoxLayout(self.right_panel)
         
-        # Search bar (QLineEdit and Search button)
+        # Search bar (QLineEdit, Search button, and Regenerate Transcript button)
         self.search_layout = QtWidgets.QHBoxLayout()
         self.search_field = QtWidgets.QLineEdit()
         self.search_field.setPlaceholderText("Search transcript...")
@@ -30,6 +30,12 @@ class RecordingsWindow(QtWidgets.QMainWindow):
         self.search_button.clicked.connect(self.search_transcript)
         self.search_layout.addWidget(self.search_field)
         self.search_layout.addWidget(self.search_button)
+        
+        # Regenerate Transcript Button
+        self.regenerate_button = QtWidgets.QPushButton("Regenerate Transcript")
+        self.regenerate_button.clicked.connect(self.regenerate_transcript)
+        self.search_layout.addWidget(self.regenerate_button)
+        
         self.right_layout.addLayout(self.search_layout)
 
         # Transcript text area
@@ -52,8 +58,10 @@ class RecordingsWindow(QtWidgets.QMainWindow):
             return
         
         # List only directories (recording sessions)
-        dirs = [d for d in os.listdir(self.recordings_path) 
-                if os.path.isdir(os.path.join(self.recordings_path, d))]
+        dirs = [
+            d for d in os.listdir(self.recordings_path) 
+            if os.path.isdir(os.path.join(self.recordings_path, d))
+        ]
         dirs.sort(reverse=True)  # Newest recordings first.
         
         self.list_widget.clear()
@@ -104,3 +112,38 @@ class RecordingsWindow(QtWidgets.QMainWindow):
             extraSelections.append(selection)
         
         self.transcript_text.setExtraSelections(extraSelections)
+    
+    def regenerate_transcript(self):
+        """
+        Regenerate the transcript for the selected session by reusing the existing transcribe()
+        method from RecordingSession. This avoids duplicating transcription logic.
+        """
+        selected_items = self.list_widget.selectedItems()
+        if not selected_items:
+            QtWidgets.QMessageBox.warning(self, "No Selection", "Please select a recording session first.")
+            return
+        
+        session_name = selected_items[0].text()
+        session_folder = os.path.join(self.recordings_path, session_name)
+        
+        try:
+            from core.audio_session import RecordingSession
+            # Create a session instance from the existing folder.
+            rs = RecordingSession.from_existing_session(session_folder)
+            result = rs.transcribe()
+            if result is None:
+                QtWidgets.QMessageBox.warning(self, "Error", "Transcription could not be generated.")
+                return
+
+            merged_transcription_text = result["merged"]
+            
+            # Save the merged transcript to merged_transcript.md.
+            md_filename = os.path.join(session_folder, "merged_transcript.md")
+            with open(md_filename, "w", encoding="utf-8") as f:
+                f.write(merged_transcription_text)
+            
+            # Reload the transcript in the text area.
+            self.load_transcript(selected_items[0])
+            QtWidgets.QMessageBox.information(self, "Success", "Transcript regenerated successfully.")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"Failed to regenerate transcript: {e}")
