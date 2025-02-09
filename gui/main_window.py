@@ -21,6 +21,9 @@ class TranscriptionWorker(QtCore.QThread):
 
 
 class AudioRecorderGUI(QtWidgets.QMainWindow):
+    # Signal to indicate a new recording has been finished.
+    recording_finished = QtCore.pyqtSignal()
+
     def __init__(self, posthog_client=None):
         super().__init__()
         self.setWindowTitle("Audio Recorder App")
@@ -160,6 +163,9 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
         self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
 
+        # Emit the signal that a recording has finished.
+        self.recording_finished.emit()
+
     def handle_transcription_done(self, result):
         if result:
             from core.utils import save_transcripts
@@ -177,6 +183,8 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
         
         if self.recordings_window is None:
             self.recordings_window = RecordingsWindow(recordings_path=recordings_path)
+        # Connect the recording_finished signal to the populate_list slot of the recordings window.
+        self.recording_finished.connect(self.recordings_window.populate_list)
         self.recordings_window.show()
         self.recordings_window.raise_()  # Bring window to the front
 
