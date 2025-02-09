@@ -21,7 +21,7 @@ class TranscriptionWorker(QtCore.QThread):
 
 
 class AudioRecorderGUI(QtWidgets.QMainWindow):
-    def __init__(self):
+    def __init__(self, posthog_client=None):
         super().__init__()
         self.setWindowTitle("Audio Recorder App")
         # Set the favicon for your main window.
@@ -30,6 +30,7 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
         self.recording_thread = None
         self.transcription_worker = None  # Worker for transcription
         self.recordings_window = None       # Instance of the recordings browser window
+        self.posthog_client = posthog_client # Store the PostHog client
         self._setup_ui()
         self._load_audio_devices()
 
@@ -111,6 +112,30 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
         mic_index = self.mic_combo.currentData()
         self.session = RecordingSession(system_index, mic_index)
         self._log(f"Session folder: {self.session.session_folder}")
+
+        # --- PostHog Event Capture: Recording Started ---
+        if self.posthog_client:
+            # For simplicity, let's generate a unique user ID if you don't have user accounts yet.
+            # In a real app, you'd use actual user IDs.
+            user_id = QtCore.QSettings().value("posthog_user_id")
+            if not user_id:
+                import uuid
+                user_id = str(uuid.uuid4())
+                QtCore.QSettings().setValue("posthog_user_id", user_id)
+
+            self.posthog_client.capture(
+                user_id,
+                'recording_started',
+                properties={
+                    'system_device_index': system_index,
+                    'mic_device_index': mic_index,
+                    
+                }
+            )
+            print(f"PostHog event captured: recording_started for user {user_id}")
+        else:
+            print("PostHog client not initialized, event not captured.")
+        # --- End PostHog Event Capture ---
 
         # Start recording in a separate Python thread.
         self.recording_thread = threading.Thread(target=self.session.record)
