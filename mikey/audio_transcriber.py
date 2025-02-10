@@ -210,11 +210,11 @@ class AudioTranscriber:
 
     def save_results(self, result: dict, processed_audio_path: Path) -> Path:
         """
-        Save the transcription results in different formats.
+        Save the transcription results in different formats to the session folder.
         """
         try:
-            output_dir = Path("transcriptions")
-            output_dir.mkdir(exist_ok=True)
+            output_dir = self.session_folder
+            output_dir.mkdir(parents=True, exist_ok=True)
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             base_path = output_dir / f"{self.audio_path.stem}_{timestamp}"
@@ -228,7 +228,7 @@ class AudioTranscriber:
             with open(f"{base_path}_segments.json", 'w', encoding='utf-8') as f:
                 json.dump(result["segments"], f, indent=2, ensure_ascii=False)
             
-            print(f"\nResults saved to transcriptions folder:")
+            print(f"\nResults saved to session folder:")
             print(f"- {base_path}.txt")
             print(f"- {base_path}_full.json")
             print(f"- {base_path}_segments.json")
