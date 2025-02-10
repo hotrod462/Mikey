@@ -38,13 +38,16 @@ class AudioTranscriber:
             output_path = Path(temp_file.name)
         
         print("Converting audio to 16kHz mono FLAC...")
-        base_path = Path(get_base_path())
+        base_path = get_base_path()
         ffmpeg_binary = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
-        ffmpeg_path = base_path / "bin" / ffmpeg_binary
+        ffmpeg_path = os.path.join(base_path, 'bin', ffmpeg_binary)
+
+        if not os.path.exists(ffmpeg_path):
+            raise FileNotFoundError(f"FFmpeg binary not found at: {ffmpeg_path}")
 
         try:
             subprocess.run([
-                str(ffmpeg_path),
+                ffmpeg_path,
                 '-hide_banner',
                 '-loglevel', 'error',
                 '-i', str(self.audio_path),

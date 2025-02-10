@@ -3,9 +3,9 @@ import sys
 
 # Determine the FFmpeg binary file based on the OS.
 if sys.platform.startswith("win"):
-    ffmpeg_binary = ("bin\\ffmpeg.exe", ".")  # For Windows, adjust path separator if needed.
+    ffmpeg_binary = ('bin/ffmpeg.exe', 'bin')  # Source path and destination folder
 else:
-    ffmpeg_binary = ("bin/ffmpeg", ".")  # For Linux/macOS.
+    ffmpeg_binary = ('bin/ffmpeg', 'bin')  # Source path and destination folder
 
 a = Analysis(
     ['main.py'],
@@ -28,15 +28,16 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='main',
+    name='MikeyV2',
     icon='resources/favicon.ico',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     upx_exclude=[],
+
     runtime_tmpdir=None,
-    console=False,
+    console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

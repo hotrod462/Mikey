@@ -1,6 +1,6 @@
 import os
 from PyQt5 import QtWidgets, QtCore, QtGui
-from core.utils import get_base_path
+from core.utils import get_base_path, get_data_path
 
 class RegenerateTranscriptWorker(QtCore.QThread):
     transcription_done = QtCore.pyqtSignal(dict)
@@ -22,17 +22,16 @@ class RecordingsWindow(QtWidgets.QMainWindow):
     def __init__(self, recordings_path=None, parent=None):
         super().__init__(parent)
         
-        # Use the application's base path from utils.py.
-        base_dir = get_base_path()
+        from core.utils import get_data_path
+        data_path = get_data_path()
         
-        # If no recordings_path is provided, default to a "recordings" subfolder in base_dir.
-        if recordings_path is None:
-            recordings_path = os.path.join(base_dir, "recordings")
-        self.recordings_path = recordings_path
-
+        # Create recordings path next to executable
+        self.recordings_path = os.path.join(data_path, 'recordings')
+        os.makedirs(self.recordings_path, exist_ok=True)
+        
         self.setWindowTitle("Recordings Browser")
         # Build the absolute path for the favicon icon.
-        icon_path = os.path.join(base_dir, "resources", "favicon.ico")
+        icon_path = os.path.join(get_base_path(), "resources", "favicon.ico")
         self.setWindowIcon(QtGui.QIcon(icon_path))
         self.resize(800, 600)
         

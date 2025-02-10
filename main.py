@@ -3,20 +3,21 @@ import sys
 from gui.main_window import AudioRecorderGUI
 import os
 from dotenv import load_dotenv
-from core.utils import get_base_path  # Import our utility function
+from core.utils import get_base_path, get_data_path  # Updated utility import
 import posthog  # Import PostHog
+from pathlib import Path
 
-# Use the utility function to determine the base path.
+# Use the utility function for all path operations
 base_path = get_base_path()
 
-# Load environment variables from .env in the same directory.
-dotenv_path = os.path.join(base_path, '.env')
-load_dotenv(dotenv_path)
+# Load environment variables
+env_path = Path(base_path) / '.env'
 
-# Define a persistent recordings folder relative to the base path.
-recordings_folder = os.path.join(base_path, 'recordings')
+# If using python-dotenv
+load_dotenv(env_path)
 
-# Ensure it exists.
+# Create recordings directory next to executable
+recordings_folder = os.path.join(get_data_path(), 'recordings')
 os.makedirs(recordings_folder, exist_ok=True)
 
 # Initialize PostHog client

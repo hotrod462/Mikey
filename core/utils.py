@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 
 def save_transcripts(session_folder, transcripts):
     """
@@ -33,13 +34,16 @@ def save_transcripts(session_folder, transcripts):
     return paths
 
 def get_base_path():
-    """
-    Returns the base path for the application.
-
-    When running in development (i.e., not as a frozen executable),
-    this returns the project root (the parent of the 'core' directory).
-    """
+    """Get base path for resources (app bundle in frozen mode)"""
     if getattr(sys, 'frozen', False):
-        return os.path.dirname(sys.executable)
-    # Go one directory up from the current file's directory.
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) 
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
+
+def get_data_path():
+    """Get path for user data (next to executable in frozen mode)"""
+    if getattr(sys, 'frozen', False):
+        # Use directory containing the executable
+        exe_dir = os.path.dirname(sys.executable)
+        return exe_dir
+    # In dev mode, use project root
+    return os.path.dirname(os.path.abspath(__file__)) 
