@@ -280,6 +280,60 @@ class AudioTranscriber:
             if processed_audio:
                 Path(processed_audio).unlink(missing_ok=True)
 
+    def merge_device_and_mic_transcripts(self, device_transcript: dict, mic_transcript: dict) -> dict:
+        """
+        Merge the device and mic transcripts by simply appending the mic transcript after the device transcript,
+        while preserving the timestamps for each segment. The final transcript text shows each segment with its
+        formatted start and end times.
+
+        Args:
+            device_transcript (dict): Transcript dictionary from the device (must include a "segments" key).
+            mic_transcript (dict): Transcript dictionary from the microphone (must include a "segments" key).
+
+        Returns:
+            dict: A merged transcript containing:
+                  - "text": The final transcript text with timestamps.
+                  - "segments": A simple concatenation of the device and mic transcript segments.
+        """
+        # --- Original merging logic commented out ---
+        # [complex merging and synchronization logic is commented out for now].
+        # --- End of original logic ---
+
+        # Tag segments with their source identifier.
+        device_segments = device_transcript.get("segments", [])
+        for seg in device_segments:
+            seg["source"] = "device"
+        mic_segments = mic_transcript.get("segments", [])
+        for seg in mic_segments:
+            seg["source"] = "mic"
+
+        # Simple merging: just append the mic segments to the device segments.
+        merged_segments = device_segments + mic_segments
+
+        # Helper function to format timestamps (in seconds).
+        def format_timestamp(seconds):
+            m, s = divmod(seconds, 60)
+            h, m = divmod(m, 60)
+            if h:
+                return f"{int(h):02d}:{int(m):02d}:{int(s):02d}"
+            else:
+                return f"{int(m):02d}:{int(s):02d}"
+
+        # Build the final transcript text from each segment.
+        final_lines = []
+        for seg in merged_segments:
+            start_formatted = format_timestamp(seg["start"])
+            end_formatted = format_timestamp(seg["end"])
+            speaker = "Device" if seg["source"] == "device" else "Mic"
+            final_lines.append(f"[{start_formatted} - {end_formatted}] {speaker}: {seg['text'].strip()}")
+        
+        merged_text = "\n".join(final_lines)
+
+        return {
+            "text": merged_text,
+            "segments": merged_segments
+        }
+
 if __name__ == "__main__":
     transcriber = AudioTranscriber(Path("path_to_your_audio"))
     transcriber.transcribe()

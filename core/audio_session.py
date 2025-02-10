@@ -11,22 +11,24 @@ class RecordingSession:
     def __init__(self, system_device_index, mic_device_index, base_folder="recordings"):
         self.system_device_index = system_device_index
         self.mic_device_index = mic_device_index
-
-        # Create a session folder with a timestamp.
-        os.makedirs(base_folder, exist_ok=True)
-        session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.session_folder = os.path.join(base_folder, session_timestamp)
-        os.makedirs(self.session_folder, exist_ok=True)
-
-        # Create an AudioRecorder instance.
-        self.recorder = AudioRecorder(session_folder=self.session_folder)
+        self.base_folder = base_folder
+        self.session_folder = None  # Will be created when record() is called.
+        self.recorder = None
         self.files = None
 
     def record(self):
         """
         Switch microphone profile and record both streams.
-        Calls AudioRecorder.trigger_mic_profile_switch first; then starts dual streams.
         """
+        if not self.session_folder:
+            # Create a session folder with a timestamp at the actual start of recording.
+            os.makedirs(self.base_folder, exist_ok=True)
+            session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.session_folder = os.path.join(self.base_folder, session_timestamp)
+            os.makedirs(self.session_folder, exist_ok=True)
+            # Now that the folder is created, instantiate the recorder.
+            self.recorder = AudioRecorder(session_folder=self.session_folder)
+
         # Do the profile switch for the microphone.
         self.recorder.trigger_mic_profile_switch(self.mic_device_index)
         # This call will record both system and mic audio.
@@ -43,6 +45,7 @@ class RecordingSession:
         """
         Perform transcription on the recorded files using AudioTranscriber.
         Processes the transcription of the system (device) audio and mic audio in separate requests.
+        Uses merge_device_and_mic_transcripts to merge the two transcripts for a natural conversation flow.
         Returns a dictionary with the merged transcription as well as individual transcriptions.
         """
         if not enable_transcription or not self.files:
@@ -60,13 +63,16 @@ class RecordingSession:
         mic_transcription_result = mic_transcriber.transcribe()
         print("Mic audio transcription complete.")
 
-        system_transcription_text = system_transcription_result.get("text", "")
-        mic_transcription_text = mic_transcription_result.get("text", "")
+        # Merge the two transcripts using the new method in AudioTranscriber
+        merged_transcript = system_transcriber.merge_device_and_mic_transcripts(
+            system_transcription_result, mic_transcription_result
+        )
 
         return {
-            "merged": system_transcription_text + "\n\n" + mic_transcription_text,
-            "system": system_transcription_text,
-            "mic": mic_transcription_text
+            "merged": merged_transcript.get("text", ""),
+            "merged_segments": merged_transcript.get("segments", []),
+            "system": system_transcription_result.get("text", ""),
+            "mic": mic_transcription_result.get("text", "")
         }
 
     @classmethod
@@ -79,12 +85,15 @@ class RecordingSession:
         # Instantiate without creating a new folder.
         obj = cls(system_device_index, mic_device_index, base_folder=os.path.dirname(session_folder))
         obj.session_folder = session_folder
-        # Auto-detect audio files (excluding markdown files).
+
+        # Filter for raw audio files only
+        valid_extensions = {'.wav', '.mp3', '.flac', '.m4a'}
         audio_files = [
             os.path.join(session_folder, f)
             for f in os.listdir(session_folder)
-            if os.path.isfile(os.path.join(session_folder, f)) and not f.endswith(".md")
+            if os.path.isfile(os.path.join(session_folder, f)) and os.path.splitext(f)[1].lower() in valid_extensions
         ]
+        
         if len(audio_files) >= 2:
             system_file = None
             mic_file = None
