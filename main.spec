@@ -1,10 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
+import sys
 
+# Determine the FFmpeg binary file based on the OS.
+if sys.platform.startswith("win"):
+    ffmpeg_binary = ("bin\\ffmpeg.exe", ".")  # For Windows, adjust path separator if needed.
+else:
+    ffmpeg_binary = ("bin/ffmpeg", ".")  # For Linux/macOS.
 
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
+    binaries=[ffmpeg_binary],
     datas=[('resources/favicon.ico', 'resources'), ('.env', '.')],
     hiddenimports=[],
     hookspath=[],

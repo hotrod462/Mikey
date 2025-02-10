@@ -58,12 +58,6 @@ class RecordingsWindow(QtWidgets.QMainWindow):
         self.search_layout.addWidget(self.search_field)
         self.search_layout.addWidget(self.search_button)
         
-        # Transcript type dropdown for selecting System or Mic transcript.
-        self.transcript_type_combo = QtWidgets.QComboBox()
-        self.transcript_type_combo.addItems(["System Transcript", "Mic Transcript"])
-        self.transcript_type_combo.currentIndexChanged.connect(self.change_transcript_view)
-        self.search_layout.addWidget(self.transcript_type_combo)
-        
         # Regenerate Transcript Button.
         self.regenerate_button = QtWidgets.QPushButton("Regenerate Transcript")
         self.regenerate_button.clicked.connect(self.regenerate_transcript)
@@ -113,14 +107,9 @@ class RecordingsWindow(QtWidgets.QMainWindow):
         """
         self.current_session_name = item.text()
         
-        transcript_type = self.transcript_type_combo.currentText()
         session_folder = os.path.join(self.recordings_path, item.text())
         
-        if transcript_type == "System Transcript":
-            transcript_file = "system_transcript.md"
-        else:
-            transcript_file = "mic_transcript.md"
-            
+        transcript_file = "merged_transcript.md" # Assuming merged transcript is saved as merged_transcript.md
         transcript_path = os.path.join(session_folder, transcript_file)
         
         if os.path.exists(transcript_path):
@@ -128,34 +117,7 @@ class RecordingsWindow(QtWidgets.QMainWindow):
                 content = f.read()
             self.transcript_text.setPlainText(content)
         else:
-            self.transcript_text.setPlainText(f"No {transcript_type.lower()} available for this recording.")
-        
-        # Clear any previous search highlights.
-        self.transcript_text.setExtraSelections([])
-    
-    def change_transcript_view(self):
-        """
-        Change the transcript view between system and mic transcript based on selection.
-        """
-        if not self.current_session_name:
-            return
-        
-        transcript_type = self.transcript_type_combo.currentText()
-        session_folder = os.path.join(self.recordings_path, self.current_session_name)
-        
-        if transcript_type == "System Transcript":
-            transcript_file = "system_transcript.md"
-        else:
-            transcript_file = "mic_transcript.md"
-            
-        transcript_path = os.path.join(session_folder, transcript_file)
-        
-        if os.path.exists(transcript_path):
-            with open(transcript_path, "r", encoding="utf-8") as f:
-                content = f.read()
-            self.transcript_text.setPlainText(content)
-        else:
-            self.transcript_text.setPlainText(f"No {transcript_type.lower()} available for this recording.")
+            self.transcript_text.setPlainText(f"No transcript available for this recording.")
     
     def search_transcript(self):
         """
@@ -228,15 +190,13 @@ class RecordingsWindow(QtWidgets.QMainWindow):
             saved_paths = save_transcripts(os.path.join(self.recordings_path, session_item.text()), result)
             
             log_msg = ("Transcript regenerated successfully!\n"
-                       f"Merged: {saved_paths['merged']}\n"
                        f"System: {saved_paths['system']}\n"
                        f"Mic: {saved_paths['mic']}\n")
             self.transcript_text.append(log_msg)
             self.transcript_text.append("Reloading transcript from file...")
 
             # Reload transcript based on current transcript selection.
-            transcript_type = self.transcript_type_combo.currentText()
-            transcript_file = "system_transcript.md" if transcript_type == "System Transcript" else "mic_transcript.md"
+            transcript_file = "merged_transcript.md" # Assuming merged transcript is saved as merged_transcript.md
             transcript_path = os.path.join(self.recordings_path, session_item.text(), transcript_file)
             
             if os.path.exists(transcript_path):
@@ -245,7 +205,7 @@ class RecordingsWindow(QtWidgets.QMainWindow):
                 self.transcript_text.append("\n----- Transcript Content -----\n")
                 self.transcript_text.append(content)
             else:
-                self.transcript_text.append(f"No {transcript_type.lower()} available after regeneration.")
+                self.transcript_text.append(f"No transcript available after regeneration.")
         except Exception as e:
             self.transcript_text.append(f"Error saving transcripts: {e}")
     

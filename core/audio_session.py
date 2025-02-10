@@ -2,92 +2,10 @@ import os
 import threading
 from datetime import datetime
 import re
+from pathlib import Path
 
 from mikey.audio_recorder import AudioRecorder
 from mikey.audio_transcriber import AudioTranscriber
-
-def merge_transcriptions(system_segments, mic_segments):
-    """
-    Merge transcription segments from system (device) audio and microphone audio into a single transcript.
-    Each segment is tagged with a speaker label and sorted by start time.
-    Returns the merged transcript as a markdown-formatted string.
-    """
-    merged = []
-    for seg in system_segments:
-        merged.append({
-            "start": seg.get("start", 0),
-            "end": seg.get("end", 0),
-            "speaker": "Device",
-            "text": seg.get("text", "")
-        })
-    for seg in mic_segments:
-        merged.append({
-            "start": seg.get("start", 0),
-            "end": seg.get("end", 0),
-            "speaker": "Mic",
-            "text": seg.get("text", "")
-        })
-
-    # Sort segments by start time.
-    merged_sorted = sorted(merged, key=lambda x: x["start"])
-
-    def format_time(seconds):
-        m, s = divmod(int(seconds), 60)
-        return f"{m:02d}:{s:02d}"
-
-    transcript_md = "# Merged Conversation Transcript\n\n"
-    for seg in merged_sorted:
-        transcript_md += f"[{format_time(seg['start'])} - {format_time(seg['end'])}] {seg['speaker']}: {seg['text']}\n\n"
-    return transcript_md
-
-def ensure_dict(segment):
-    """
-    Ensure the transcription segment is a dictionary.
-    If not, try converting using __dict__.
-    """
-    if isinstance(segment, dict):
-        return segment
-    try:
-        return segment.__dict__
-    except Exception:
-        return {"start": 0, "end": 0, "text": str(segment)}
-
-def convert_time_str_to_seconds(time_str):
-    """
-    Convert a time string in HH:MM:SS format to total seconds.
-    """
-    h, m, s = map(int, time_str.split(":"))
-    return h * 3600 + m * 60 + s
-
-def parse_transcript_text(transcript_text, default_speaker):
-    """
-    Parse a transcript text in markdown format into a list of segments.
-    Assumes each segment line is formatted as:
-    [HH:MM:SS] - [HH:MM:SS] - [OptionalSpeaker: ]Text
-    Returns a list of dictionaries with keys: start, end, speaker, text.
-    """
-    segments = []
-    lines = transcript_text.splitlines()
-    pattern = r"^\[(\d{2}:\d{2}:\d{2})\]\s*-\s*\[(\d{2}:\d{2}:\d{2})\]\s*(?:-\s*)?(?:(\w+):)?\s*(.+)$"
-    for line in lines:
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        match = re.match(pattern, line)
-        if match:
-            start_str = match.group(1)
-            end_str = match.group(2)
-            # Override any speaker information with the provided default.
-            text = match.group(4)
-            start = convert_time_str_to_seconds(start_str)
-            end = convert_time_str_to_seconds(end_str)
-            segments.append({
-                "start": start,
-                "end": end,
-                "speaker": default_speaker,
-                "text": text
-            })
-    return segments
 
 class RecordingSession:
     def __init__(self, system_device_index, mic_device_index, base_folder="recordings"):
@@ -125,28 +43,28 @@ class RecordingSession:
         """
         Perform transcription on the recorded files using AudioTranscriber.
         Processes the transcription of the system (device) audio and mic audio in separate requests.
-        Parses each transcript based on timestamps and then stitches them together in a merged markdown transcript.
         Returns a dictionary with the merged transcription as well as individual transcriptions.
         """
         if not enable_transcription or not self.files:
             return None
 
         system_file, mic_file = self.files
-        transcriber = AudioTranscriber(self.session_folder)
 
-        # Transcribe each audio file separately.
-        system_transcription_text = transcriber.transcribe_audio(system_file, with_timestamps=True)
-        mic_transcription_text = transcriber.transcribe_audio(mic_file, with_timestamps=True)
+        print("Transcribing system audio...")
+        system_transcriber = AudioTranscriber(Path(system_file), session_folder=Path(self.session_folder))
+        system_transcription_result = system_transcriber.transcribe()
+        print("System audio transcription complete.")
 
-        # Parse the individual transcription texts into segments.
-        system_segments = parse_transcript_text(system_transcription_text, default_speaker="Device")
-        mic_segments = parse_transcript_text(mic_transcription_text, default_speaker="Mic")
+        print("Transcribing mic audio...")
+        mic_transcriber = AudioTranscriber(Path(mic_file), session_folder=Path(self.session_folder))
+        mic_transcription_result = mic_transcriber.transcribe()
+        print("Mic audio transcription complete.")
 
-        # Merge the segments based on their timestamps.
-        merged_transcription_md = merge_transcriptions(system_segments, mic_segments)
+        system_transcription_text = system_transcription_result.get("text", "")
+        mic_transcription_text = mic_transcription_result.get("text", "")
 
         return {
-            "merged": merged_transcription_md,
+            "merged": system_transcription_text + "\n\n" + mic_transcription_text,
             "system": system_transcription_text,
             "mic": mic_transcription_text
         }
