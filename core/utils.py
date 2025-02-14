@@ -34,16 +34,16 @@ def save_transcripts(session_folder, transcripts):
     return paths
 
 def get_base_path():
-    """Get base path for resources (app bundle in frozen mode)"""
+    """Get base path for resources (app bundle in frozen mode) or the project root in development."""
     if getattr(sys, 'frozen', False):
         return sys._MEIPASS
-    return os.path.dirname(os.path.abspath(__file__))
+    # In development mode, assume this file is in <project_root>/core/ and return the project root
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def get_data_path():
-    """Get path for user data (next to executable in frozen mode)"""
+    """Get path for user data (next to executable in frozen mode) or the project root in development."""
     if getattr(sys, 'frozen', False):
-        # Use directory containing the executable
-        exe_dir = os.path.dirname(sys.executable)
-        return exe_dir
-    # In dev mode, use project root
-    return os.path.dirname(os.path.abspath(__file__)) 
+        # Use the directory containing the executable when frozen.
+        return os.path.dirname(sys.executable)
+    # In development mode, use the project root as defined by get_base_path().
+    return get_base_path() 
