@@ -8,8 +8,10 @@ from datetime import datetime
 from pathlib import Path
 from pydub import AudioSegment
 from groq import Groq, RateLimitError
-from core.utils import get_base_path
+from core.utils import get_base_path, get_ffmpeg_path
 
+# Set AudioSegment.converter to our bundled ffmpeg path
+AudioSegment.converter = get_ffmpeg_path()
 
 class AudioTranscriber:
     def __init__(self, audio_path: Path, chunk_length: int = 600, overlap: int = 10, session_folder: Path = None):
@@ -39,8 +41,9 @@ class AudioTranscriber:
         
         print("Converting audio to 16kHz mono FLAC...")
         base_path = get_base_path()
-        ffmpeg_binary = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
-        ffmpeg_path = os.path.join(base_path, 'bin', ffmpeg_binary)
+        
+        # Instead of manually constructing the path, we can use get_ffmpeg_path
+        ffmpeg_path = get_ffmpeg_path()
 
         if not os.path.exists(ffmpeg_path):
             raise FileNotFoundError(f"FFmpeg binary not found at: {ffmpeg_path}")
