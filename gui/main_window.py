@@ -13,10 +13,25 @@ class TranscriptionWorker(QtCore.QThread):
     def __init__(self, session):
         super().__init__()
         self.session = session
+        self.use_local = False
+        self.model_size = "base"
+        self.device = "cpu"
+
+    def set_transcription_params(self, use_local, model_size, device):
+        self.use_local = use_local
+        self.model_size = model_size
+        self.device = device
 
     def run(self):
         # This call runs in a separate thread so it won't freeze the UI.
-        result = self.session.transcribe()
+        result = self.session.transcribe(
+            enable_transcription=True,
+            use_local=self.use_local,
+            model_size="medium",
+            device=self.device
+        )
+        # Add service type to result
+        result['service'] = 'local (faster_whisper)' if self.use_local else 'groq'
         self.transcription_done.emit(result)
 
 
@@ -50,6 +65,34 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
         layout.addWidget(QtWidgets.QLabel("Select Microphone Device:"))
         self.mic_combo = QtWidgets.QComboBox()
         layout.addWidget(self.mic_combo)
+
+        # Add transcription options
+        transcribe_group = QtWidgets.QGroupBox("Transcription Settings")
+        transcribe_layout = QtWidgets.QVBoxLayout()
+        
+        # Local transcription checkbox
+        self.local_transcribe_check = QtWidgets.QCheckBox("Use Local Transcription")
+        transcribe_layout.addWidget(self.local_transcribe_check)
+        
+        # Model size selection
+        model_layout = QtWidgets.QHBoxLayout()
+        model_layout.addWidget(QtWidgets.QLabel("Model Size:"))
+        self.model_combo = QtWidgets.QComboBox()
+        self.model_combo.addItems(["tiny", "base", "small", "medium", "large"])
+        self.model_combo.setCurrentIndex(1)  # Default to 'base'
+        model_layout.addWidget(self.model_combo)
+        transcribe_layout.addLayout(model_layout)
+        
+        # Device selection
+        device_layout = QtWidgets.QHBoxLayout()
+        device_layout.addWidget(QtWidgets.QLabel("Compute Device:"))
+        self.device_combo = QtWidgets.QComboBox()
+        self.device_combo.addItems(["cpu", "cuda", "mps"])
+        device_layout.addWidget(self.device_combo)
+        transcribe_layout.addLayout(device_layout)
+        
+        transcribe_group.setLayout(transcribe_layout)
+        layout.insertWidget(2, transcribe_group)  # Insert after device selection
 
         # Buttons for controlling recording.
         btn_layout = QtWidgets.QHBoxLayout()
@@ -155,8 +198,15 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
             self.recording_thread.join()
         self._log("Recording stopped.")
 
-        # Start transcription in a separate QThread to avoid blocking the UI.
+        #To avoid blocking the UI, we'll start transcription in a separate thread.
+        # Get transcription parameters from UI
+        use_local = self.local_transcribe_check.isChecked()
+        model_size = self.model_combo.currentText()
+        device = self.device_combo.currentText()
+        
+        # Pass parameters to worker
         self.transcription_worker = TranscriptionWorker(self.session)
+        self.transcription_worker.set_transcription_params(use_local, model_size, device)
         self.transcription_worker.transcription_done.connect(self.handle_transcription_done)
         self.transcription_worker.start()
 
@@ -168,9 +218,10 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
 
     def handle_transcription_done(self, result):
         if result:
+            self._log(f"Transcription complete using {result['service']}")
             from core.utils import save_transcripts
             saved_paths = save_transcripts(self.session.session_folder, result)
-            self._log("Transcription complete and saved as:")
+            self._log("Saved transcripts:")
             self._log(f"Merged: {saved_paths['merged']}")
             self._log(f"System: {saved_paths['system']}")
             self._log(f"Mic: {saved_paths['mic']}")
