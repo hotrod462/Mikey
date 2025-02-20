@@ -9,12 +9,16 @@ from pathlib import Path
 from pydub import AudioSegment
 from groq import Groq, RateLimitError
 from core.utils import get_base_path, get_ffmpeg_path
+from typing import Literal
+from faster_whisper import WhisperModel
 
 # Set AudioSegment.converter to our bundled ffmpeg path
 AudioSegment.converter = get_ffmpeg_path()
 
 class AudioTranscriber:
-    def __init__(self, audio_path: Path, chunk_length: int = 600, overlap: int = 10, session_folder: Path = None):
+    def __init__(self, audio_path: Path, chunk_length: int = 600, overlap: int = 10, 
+                 session_folder: Path = None, use_local: bool = False,
+                 model_size: str = "base", device: str = "cpu"):
         """
         Initialize the AudioTranscriber with the given parameters.
         """
@@ -24,10 +28,18 @@ class AudioTranscriber:
         self.session_folder = session_folder or Path("recordings/session_temp")
         self.session_folder.mkdir(parents=True, exist_ok=True)
         
-        self.api_key = os.getenv("GROQ_API_KEY")
-        if not self.api_key:
-            raise ValueError("GROQ_API_KEY environment variable not set")
-        self.client = Groq(api_key=self.api_key, max_retries=0)
+        self.use_local = use_local
+        if use_local:
+            self.whisper_model = WhisperModel(
+                model_size,
+                device=device,
+                compute_type="float16" if device == "cuda" else "int8"
+            )
+        else:
+            self.api_key = os.getenv("GROQ_API_KEY")
+            if not self.api_key:
+                raise ValueError("GROQ_API_KEY environment variable not set")
+            self.client = Groq(api_key=self.api_key, max_retries=0)
 
     def preprocess_audio(self) -> Path:
         """
@@ -65,41 +77,66 @@ class AudioTranscriber:
             output_path.unlink(missing_ok=True)
             raise RuntimeError(f"FFmpeg conversion failed: {str(e)}")
 
-    def transcribe_single_chunk(self, chunk: AudioSegment, chunk_num: int, total_chunks: int) -> tuple[dict, float]:
-        """
-        Transcribe a single audio chunk using the Groq API.
-        Returns a tuple of (transcription result, API processing time).
-        """
-        total_api_time = 0
-        
-        while True:
-            temp_file = tempfile.NamedTemporaryFile(suffix=".flac", delete=False, dir=str(self.session_folder))
-            temp_file.close()  # Release the file handle
+    def _call_groq_api(self, audio_file: Path) -> dict:
+        """Handle Groq API call with retry logic"""
+        with open(audio_file, 'rb') as f:
+            while True:
+                try:
+                    return self.client.audio.transcriptions.create(
+                        file=("chunk.flac", f, "audio/flac"),
+                        model="whisper-large-v3",
+                        language="en",
+                        response_format="verbose_json"
+                    )
+                except RateLimitError:
+                    print("\nRate limit hit - retrying in 60 seconds...")
+                    time.sleep(60)
 
-            try:
-                chunk.export(temp_file.name, format='flac')
-                start_time = time.time()
-                with open(temp_file.name, 'rb') as f:
-                    try:
-                        result = self.client.audio.transcriptions.create(
-                            file=("chunk.flac", f, "audio/flac"),
-                            model="whisper-large-v3",
-                            language="en",
-                            response_format="verbose_json"
-                        )
-                        api_time = time.time() - start_time
-                        total_api_time += api_time
-                        print(f"Chunk {chunk_num}/{total_chunks} processed in {api_time:.2f}s")
-                        return result, total_api_time
-                    except RateLimitError:
-                        print(f"\nRate limit hit for chunk {chunk_num} - retrying in 60 seconds...")
-                        time.sleep(60)
-                        continue
-                    except Exception as e:
-                        print(f"Error transcribing chunk {chunk_num}: {str(e)}")
-                        raise
-            finally:
-                os.unlink(temp_file.name)
+    def _call_local_whisper(self, audio_file: Path) -> dict:
+        """Handle local FasterWhisper transcription"""
+        segments, info = self.whisper_model.transcribe(
+            str(audio_file),
+            language="en",
+            beam_size=5,
+            vad_filter=True
+        )
+        
+        return {
+            "text": " ".join(segment.text for segment in segments),
+            "segments": [{
+                "text": segment.text,
+                "start": segment.start,
+                "end": segment.end,
+                "words": [{"word": word.word, "start": word.start, "end": word.end}
+                        for word in segment.words] if segment.words else []
+            } for segment in segments]
+        }
+
+    def transcribe_single_chunk(self, chunk: AudioSegment, chunk_num: int, total_chunks: int) -> tuple[dict, float]:
+        """Transcribe a single audio chunk using either local or Groq"""
+        total_api_time = 0
+        temp_file = tempfile.NamedTemporaryFile(suffix=".flac", delete=False, dir=str(self.session_folder))
+        temp_file.close()
+        
+        try:
+            chunk.export(temp_file.name, format='flac')
+            start_time = time.time()
+            
+            if self.use_local:
+                result = self._call_local_whisper(Path(temp_file.name))
+            else:
+                result = self._call_groq_api(Path(temp_file.name))
+            
+            api_time = time.time() - start_time
+            total_api_time += api_time
+            print(f"Chunk {chunk_num}/{total_chunks} processed in {api_time:.2f}s")
+            return result, total_api_time
+            
+        except Exception as e:
+            print(f"Error transcribing chunk {chunk_num}: {str(e)}")
+            raise
+        finally:
+            os.unlink(temp_file.name)
 
     @staticmethod
     def find_longest_common_sequence(sequences: list[str], match_by_words: bool = True) -> str:
