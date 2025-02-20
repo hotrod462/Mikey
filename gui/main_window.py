@@ -27,7 +27,7 @@ class TranscriptionWorker(QtCore.QThread):
         result = self.session.transcribe(
             enable_transcription=True,
             use_local=self.use_local,
-            model_size="medium",
+            model_size=self.model_size,
             device=self.device
         )
         # Add service type to result

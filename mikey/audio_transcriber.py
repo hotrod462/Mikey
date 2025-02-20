@@ -98,9 +98,23 @@ class AudioTranscriber:
             str(audio_file),
             language="en",
             beam_size=5,
-            vad_filter=True
+            vad_filter=False
         )
         
+        # Print global transcription info returned by FasterWhisper.
+        print("Whisper transcription global info:")
+        print(info)
+        
+        # Print detailed info for each transcribed segment.
+        for idx, segment in enumerate(segments):
+            print(f"Segment {idx + 1}:")
+            print(f"  Start: {segment.start} s, End: {segment.end} s")
+            print(f"  Text: {segment.text}")
+            if segment.words:
+                print("  Word-level details:")
+                for word in segment.words:
+                    print(f"    {word.word} (start: {word.start} s, end: {word.end} s)")
+                    
         return {
             "text": " ".join(segment.text for segment in segments),
             "segments": [{
@@ -108,7 +122,7 @@ class AudioTranscriber:
                 "start": segment.start,
                 "end": segment.end,
                 "words": [{"word": word.word, "start": word.start, "end": word.end}
-                        for word in segment.words] if segment.words else []
+                          for word in segment.words] if segment.words else []
             } for segment in segments]
         }
 
@@ -203,17 +217,26 @@ class AudioTranscriber:
         final_segments = []
         processed_chunks = []
         
-        for i, (chunk, _) in enumerate(results):
+        # Process each chunk and update segment times to global times.
+        for i, (chunk, offset_ms) in enumerate(results):
+            offset_sec = offset_ms / 1000.0
             data = chunk.model_dump() if hasattr(chunk, 'model_dump') else chunk
+            
+            # Update each segment's times by adding the chunk's starting offset.
+            for seg in data['segments']:
+                seg['start'] += offset_sec
+                seg['end'] += offset_sec
+            
             segments = data['segments']
             
             if i < len(results) - 1:
-                next_start = results[i + 1][1]
+                # Convert the next chunk's start to seconds.
+                next_start_sec = results[i + 1][1] / 1000.0
                 current_segments = []
                 overlap_segments = []
                 
                 for segment in segments:
-                    if segment['end'] * 1000 > next_start:
+                    if segment['end'] > next_start_sec:
                         overlap_segments.append(segment)
                     else:
                         current_segments.append(segment)
@@ -315,7 +338,7 @@ class AudioTranscriber:
                 total_transcription_time += chunk_time
                 results.append((result, start))
             
-            final_result = AudioTranscriber.merge_transcripts(results)
+            final_result = self.merge_transcripts(results)
             self.save_results(final_result, self.audio_path)
             print(f"\nTotal Groq API transcription time: {total_transcription_time:.2f}s")
             return final_result
@@ -338,10 +361,7 @@ class AudioTranscriber:
                   - "text": The final transcript text with timestamps.
                   - "segments": A simple concatenation of the device and mic transcript segments.
         """
-        # --- Original merging logic commented out ---
-        # [complex merging and synchronization logic is commented out for now].
-        # --- End of original logic ---
-
+        
         # Tag segments with their source identifier.
         device_segments = device_transcript.get("segments", [])
         for seg in device_segments:
