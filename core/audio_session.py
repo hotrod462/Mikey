@@ -41,12 +41,18 @@ class RecordingSession:
         """
         self.recorder.is_recording = False
 
-    def transcribe(self, enable_transcription=True):
+    def transcribe(self, enable_transcription=True, use_local: bool = False,
+                   model_size: str = "base", device: str = "cpu"):
         """
         Perform transcription on the recorded files using AudioTranscriber.
         Processes the transcription of the system (device) audio and mic audio in separate requests.
         Uses merge_device_and_mic_transcripts to merge the two transcripts for a natural conversation flow.
         Returns a dictionary with the merged transcription as well as individual transcriptions.
+        
+        Parameters match AudioTranscriber defaults:
+        - use_local: False (cloud-based transcription)
+        - model_size: "base" (Whisper model size)
+        - device: "cpu" (compute device)
         """
         if not enable_transcription or not self.files:
             return None
@@ -54,12 +60,24 @@ class RecordingSession:
         system_file, mic_file = self.files
 
         print("Transcribing system audio...")
-        system_transcriber = AudioTranscriber(Path(system_file), session_folder=Path(self.session_folder))
+        system_transcriber = AudioTranscriber(
+            Path(system_file), 
+            session_folder=Path(self.session_folder),
+            use_local=use_local,
+            model_size=model_size,
+            device=device
+        )
         system_transcription_result = system_transcriber.transcribe()
         print("System audio transcription complete.")
 
         print("Transcribing mic audio...")
-        mic_transcriber = AudioTranscriber(Path(mic_file), session_folder=Path(self.session_folder))
+        mic_transcriber = AudioTranscriber(
+            Path(mic_file), 
+            session_folder=Path(self.session_folder),
+            use_local=use_local,
+            model_size=model_size,
+            device=device
+        )
         mic_transcription_result = mic_transcriber.transcribe()
         print("Mic audio transcription complete.")
 
