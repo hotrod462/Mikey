@@ -6,13 +6,14 @@ class RegenerateTranscriptWorker(QtCore.QThread):
     transcription_done = QtCore.pyqtSignal(dict)
     error_occurred = QtCore.pyqtSignal(str)
 
-    def __init__(self, session):
+    def __init__(self, session, use_local):
         super().__init__()
         self.session = session
+        self.use_local = use_local
 
     def run(self):
         try:
-            result = self.session.transcribe()
+            result = self.session.transcribe(use_local=self.use_local)
             self.transcription_done.emit(result)
         except Exception as e:
             self.error_occurred.emit(str(e))
@@ -56,6 +57,12 @@ class RecordingsWindow(QtWidgets.QMainWindow):
         self.search_button.clicked.connect(self.search_transcript)
         self.search_layout.addWidget(self.search_field)
         self.search_layout.addWidget(self.search_button)
+        
+        # Add transcription mode selector
+        self.transcription_mode = QtWidgets.QComboBox()
+        self.transcription_mode.addItem("Groq (Cloud)")
+        self.transcription_mode.addItem("Local (faster_whisper)")
+        self.search_layout.addWidget(self.transcription_mode)
         
         # Regenerate Transcript Button.
         self.regenerate_button = QtWidgets.QPushButton("Regenerate Transcript")
@@ -171,8 +178,11 @@ class RecordingsWindow(QtWidgets.QMainWindow):
             self.transcript_text.append(f"Error initializing session: {e}")
             return
 
+        # Get selected transcription mode
+        use_local = self.transcription_mode.currentText() == "Local (faster_whisper)"
+        
         # Create and start the transcription worker.
-        self.regen_worker = RegenerateTranscriptWorker(rs)
+        self.regen_worker = RegenerateTranscriptWorker(rs, use_local)
         self.regen_worker.transcription_done.connect(lambda result: self.handle_regeneration_done(result, session_item))
         self.regen_worker.error_occurred.connect(self.handle_regeneration_error)
         
