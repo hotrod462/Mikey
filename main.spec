@@ -3,14 +3,14 @@ import sys
 
 # Determine the FFmpeg binary file based on the OS.
 if sys.platform.startswith("win"):
-    ffmpeg_binary = ('bin/ffmpeg.exe', 'bin')  # Source path and destination folder
+    ff_binaries = [('bin/ffmpeg.exe', 'bin'), ('bin/ffprobe.exe', 'bin')]  # Added ffprobe
 else:
-    ffmpeg_binary = ('bin/ffmpeg', 'bin')  # Source path and destination folder
+    ff_binaries = [('bin/ffmpeg', 'bin'), ('bin/ffprobe', 'bin')]  # Added ffprobe
 
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[ffmpeg_binary],
+    binaries=ff_binaries,
     datas=[('resources/favicon.ico', 'resources'), ('.env', '.')],
     hiddenimports=[],
     hookspath=[],
@@ -28,7 +28,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='MikeyV2',
+    name='MikeyV3_testbuild2',
     icon='resources/favicon.ico',
     debug=False,
     bootloader_ignore_signals=False,
