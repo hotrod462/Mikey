@@ -101,29 +101,25 @@ class AudioTranscriber:
             vad_filter=False
         )
         
-        # Print global transcription info returned by FasterWhisper.
-        print("Whisper transcription global info:")
-        print(info)
+        # Convert generator to list to allow multiple iterations
+        segments = list(segments)
         
-        # Print detailed info for each transcribed segment.
-        for idx, segment in enumerate(segments):
-            print(f"Segment {idx + 1}:")
-            print(f"  Start: {segment.start} s, End: {segment.end} s")
-            print(f"  Text: {segment.text}")
-            if segment.words:
-                print("  Word-level details:")
-                for word in segment.words:
-                    print(f"    {word.word} (start: {word.start} s, end: {word.end} s)")
-                    
         return {
             "text": " ".join(segment.text for segment in segments),
             "segments": [{
-                "text": segment.text,
+                "id": idx,
+                "seek": 0,
                 "start": segment.start,
                 "end": segment.end,
+                "text": segment.text,
                 "words": [{"word": word.word, "start": word.start, "end": word.end}
-                          for word in segment.words] if segment.words else []
-            } for segment in segments]
+                          for word in segment.words] if segment.words else [],
+                "tokens": [],
+                "temperature": 0.0,
+                "avg_logprob": -0.1,
+                "compression_ratio": 1.0,
+                "no_speech_prob": 0.0
+            } for idx, segment in enumerate(segments)]
         }
 
     def transcribe_single_chunk(self, chunk: AudioSegment, chunk_num: int, total_chunks: int) -> tuple[dict, float]:
@@ -220,7 +216,9 @@ class AudioTranscriber:
         # Process each chunk and update segment times to global times.
         for i, (chunk, offset_ms) in enumerate(results):
             offset_sec = offset_ms / 1000.0
-            data = chunk.model_dump() if hasattr(chunk, 'model_dump') else chunk
+            # Remove model_dump() check and handle raw dict
+            data = chunk if isinstance(chunk, dict) else chunk.model_dump()
+            print(data) # for debugging
             
             # Update each segment's times by adding the chunk's starting offset.
             for seg in data['segments']:
