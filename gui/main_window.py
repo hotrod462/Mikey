@@ -41,7 +41,7 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
 
     def __init__(self, posthog_client=None):
         super().__init__()
-        self.setWindowTitle("Audio Recorder App")
+        self.setWindowTitle("Mikey")
         # Set the favicon for your main window.
         self.setWindowIcon(QtGui.QIcon("resources/favicon.ico"))
         self.session = None       # Instance of RecordingSession
@@ -72,27 +72,37 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
         
         # Local transcription checkbox
         self.local_transcribe_check = QtWidgets.QCheckBox("Use Local Transcription")
+        self.local_transcribe_check.setChecked(True)  # Checked by default
         transcribe_layout.addWidget(self.local_transcribe_check)
+        
+        # Container for conditional settings
+        self.config_container = QtWidgets.QWidget()
+        config_layout = QtWidgets.QVBoxLayout(self.config_container)
         
         # Model size selection
         model_layout = QtWidgets.QHBoxLayout()
         model_layout.addWidget(QtWidgets.QLabel("Model Size:"))
         self.model_combo = QtWidgets.QComboBox()
         self.model_combo.addItems(["tiny", "base", "small", "medium", "large"])
-        self.model_combo.setCurrentIndex(1)  # Default to 'base'
+        self.model_combo.setCurrentIndex(1)
         model_layout.addWidget(self.model_combo)
-        transcribe_layout.addLayout(model_layout)
+        config_layout.addLayout(model_layout)
         
-        # Device selection
+        # Device selection (removed mps)
         device_layout = QtWidgets.QHBoxLayout()
         device_layout.addWidget(QtWidgets.QLabel("Compute Device:"))
         self.device_combo = QtWidgets.QComboBox()
-        self.device_combo.addItems(["cpu", "cuda", "mps"])
+        self.device_combo.addItems(["cpu", "cuda"])  # Removed mps
         device_layout.addWidget(self.device_combo)
-        transcribe_layout.addLayout(device_layout)
+        config_layout.addLayout(device_layout)
         
+        transcribe_layout.addWidget(self.config_container)
         transcribe_group.setLayout(transcribe_layout)
-        layout.addWidget(transcribe_group)  # Now placed after device selection
+        layout.addWidget(transcribe_group)
+
+        # Connect checkbox to toggle visibility
+        self.local_transcribe_check.toggled.connect(self.config_container.setVisible)
+        self.config_container.setVisible(True)  # Initial state matches checkbox
 
         # Buttons for controlling recording.
         btn_layout = QtWidgets.QHBoxLayout()
