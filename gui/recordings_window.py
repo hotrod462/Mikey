@@ -6,14 +6,20 @@ class RegenerateTranscriptWorker(QtCore.QThread):
     transcription_done = QtCore.pyqtSignal(dict)
     error_occurred = QtCore.pyqtSignal(str)
 
-    def __init__(self, session, use_local):
+    def __init__(self, session, use_local, model_size=None, device=None):
         super().__init__()
         self.session = session
         self.use_local = use_local
+        self.model_size = model_size
+        self.device = device
 
     def run(self):
         try:
-            result = self.session.transcribe(use_local=self.use_local)
+            result = self.session.transcribe(
+                use_local=self.use_local,
+                model_size=self.model_size,
+                device=self.device
+            )
             self.transcription_done.emit(result)
         except Exception as e:
             self.error_occurred.emit(str(e))
@@ -62,9 +68,24 @@ class RecordingsWindow(QtWidgets.QMainWindow):
         self.transcription_mode = QtWidgets.QComboBox()
         self.transcription_mode.addItem("Groq (Cloud)")
         self.transcription_mode.addItem("Local (faster_whisper)")
+        self.transcription_mode.currentIndexChanged.connect(self.toggle_local_settings)
         self.search_layout.addWidget(self.transcription_mode)
+
+        # Local transcription settings (hidden by default)
+        self.model_size_combo = QtWidgets.QComboBox()
+        self.model_size_combo.addItems(["tiny", "base", "small", "medium", "large"])
+        self.model_size_combo.setCurrentText("base")
+        self.search_layout.addWidget(self.model_size_combo)
         
-        # Regenerate Transcript Button.
+        self.device_combo = QtWidgets.QComboBox()
+        self.device_combo.addItems(["cpu", "cuda"])
+        self.search_layout.addWidget(self.device_combo)
+        
+        # Initially hide local settings
+        self.model_size_combo.hide()
+        self.device_combo.hide()
+
+        # Regenerate Transcript Button
         self.regenerate_button = QtWidgets.QPushButton("Regenerate Transcript")
         self.regenerate_button.clicked.connect(self.regenerate_transcript)
         self.search_layout.addWidget(self.regenerate_button)
@@ -151,6 +172,12 @@ class RecordingsWindow(QtWidgets.QMainWindow):
         
         self.transcript_text.setExtraSelections(extraSelections)
     
+    def toggle_local_settings(self):
+        """Show/hide local transcription settings based on mode selection"""
+        is_local = self.transcription_mode.currentText() == "Local (faster_whisper)"
+        self.model_size_combo.setVisible(is_local)
+        self.device_combo.setVisible(is_local)
+
     def regenerate_transcript(self):
         """
         Regenerate the transcript from the source audio files in the selected session folder.
@@ -158,13 +185,17 @@ class RecordingsWindow(QtWidgets.QMainWindow):
         """
         selected_items = self.list_widget.selectedItems()
         if not selected_items:
-            # Log warning in the transcript text area instead of showing a message box.
             self.transcript_text.append("Warning: Please select a recording session first.")
             return
 
+        # Get transcription parameters
+        use_local = self.transcription_mode.currentText() == "Local (faster_whisper)"
+        model_size = self.model_size_combo.currentText() if use_local else None
+        device = self.device_combo.currentText() if use_local else None
+
         session_item = selected_items[0]
         session_name = session_item.text()
-        self.transcript_text.clear()  # Clear current text to show log messages.
+        self.transcript_text.clear()
         self.transcript_text.append(f"Starting regeneration for session: '{session_name}'")
 
         session_folder = os.path.join(self.recordings_path, session_name)
@@ -178,11 +209,8 @@ class RecordingsWindow(QtWidgets.QMainWindow):
             self.transcript_text.append(f"Error initializing session: {e}")
             return
 
-        # Get selected transcription mode
-        use_local = self.transcription_mode.currentText() == "Local (faster_whisper)"
-        
-        # Create and start the transcription worker.
-        self.regen_worker = RegenerateTranscriptWorker(rs, use_local)
+        # Create and start the transcription worker with parameters
+        self.regen_worker = RegenerateTranscriptWorker(rs, use_local, model_size, device)
         self.regen_worker.transcription_done.connect(lambda result: self.handle_regeneration_done(result, session_item))
         self.regen_worker.error_occurred.connect(self.handle_regeneration_error)
         

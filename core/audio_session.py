@@ -42,17 +42,14 @@ class RecordingSession:
         self.recorder.is_recording = False
 
     def transcribe(self, enable_transcription=True, use_local: bool = False,
-                   model_size: str = "base", device: str = "cpu"):
+                   model_size: str = None, device: str = None):
         """
         Perform transcription on the recorded files using AudioTranscriber.
         Processes the transcription of the system (device) audio and mic audio in separate requests.
         Uses merge_device_and_mic_transcripts to merge the two transcripts for a natural conversation flow.
         Returns a dictionary with the merged transcription as well as individual transcriptions.
         
-        Parameters match AudioTranscriber defaults:
-        - use_local: False (cloud-based transcription)
-        - model_size: "base" (Whisper model size)
-        - device: "cpu" (compute device)
+        Parameters now properly handle None values for cloud-based transcription
         """
         if not enable_transcription or not self.files:
             return None
@@ -64,8 +61,8 @@ class RecordingSession:
             Path(system_file), 
             session_folder=Path(self.session_folder),
             use_local=use_local,
-            model_size=model_size,
-            device=device
+            model_size=model_size or "base",  # Default if not provided
+            device=device or "cpu"  # Default if not provided
         )
         system_transcription_result = system_transcriber.transcribe()
         print("System audio transcription complete.")
@@ -75,8 +72,8 @@ class RecordingSession:
             Path(mic_file), 
             session_folder=Path(self.session_folder),
             use_local=use_local,
-            model_size=model_size,
-            device=device
+            model_size=model_size or "base",  # Default if not provided
+            device=device or "cpu"  # Default if not provided
         )
         mic_transcription_result = mic_transcriber.transcribe()
         print("Mic audio transcription complete.")

@@ -218,7 +218,7 @@ class AudioTranscriber:
             offset_sec = offset_ms / 1000.0
             # Remove model_dump() check and handle raw dict
             data = chunk if isinstance(chunk, dict) else chunk.model_dump()
-            print(data) # for debugging
+            #print(data) # for debugging
             
             # Update each segment's times by adding the chunk's starting offset.
             for seg in data['segments']:
