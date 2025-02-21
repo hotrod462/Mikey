@@ -48,15 +48,20 @@ def get_data_path():
     # In development mode, use the project root as defined by get_base_path().
     return get_base_path() 
 
-def get_ffmpeg_path():
-    """
-    Returns the absolute path to the bundled ffmpeg executable.
-    When frozen, the base path comes from sys._MEIPASS.
-    It assumes your ffmpeg binary is located in the "./bin" folder.
-    """
-    base_path = get_base_path()
-    ffmpeg_binary = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
-    ffmpeg_path = os.path.join(base_path, "bin", ffmpeg_binary)
-    if not os.path.exists(ffmpeg_path):
-        raise FileNotFoundError(f"Bundled ffmpeg not found at: {ffmpeg_path}")
-    return ffmpeg_path
+def get_bin_path(binary_name: str) -> str:
+    """Get absolute path to a binary in the bin directory with existence check."""
+    base_path = Path(get_base_path())
+    bin_path = base_path / "bin" / binary_name
+    
+    if not bin_path.exists():
+        raise FileNotFoundError(f"Required binary not found: {bin_path}")
+    
+    return str(bin_path)
+
+def get_ffmpeg_path() -> str:
+    """Get path to ffmpeg executable"""
+    return get_bin_path("ffmpeg.exe" if os.name == "nt" else "ffmpeg")
+
+def get_ffprobe_path() -> str:
+    """Get path to ffprobe executable"""
+    return get_bin_path("ffprobe.exe" if os.name == "nt" else "ffprobe")

@@ -6,14 +6,21 @@ import tempfile
 import re
 from datetime import datetime
 from pathlib import Path
+from core.utils import get_base_path, get_ffmpeg_path, get_ffprobe_path
+
+# Configure environment BEFORE importing pydub
+bin_dir = Path(get_ffmpeg_path()).parent
+os.environ["PATH"] = f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"
+
+# Now import pydub
 from pydub import AudioSegment
 from groq import Groq, RateLimitError
-from core.utils import get_base_path, get_ffmpeg_path
 from typing import Literal
 from faster_whisper import WhisperModel
 
-# Set AudioSegment.converter to our bundled ffmpeg path
+# Directly configure pydub's paths
 AudioSegment.converter = get_ffmpeg_path()
+AudioSegment.ffprobe = get_ffprobe_path()
 
 class AudioTranscriber:
     def __init__(self, audio_path: Path, chunk_length: int = 600, overlap: int = 10, 
@@ -48,19 +55,27 @@ class AudioTranscriber:
         if not self.audio_path.exists():
             raise FileNotFoundError(f"Input file not found: {self.audio_path}")
         
+        # Verify FFmpeg binaries before proceeding
+        ffmpeg_path = get_ffmpeg_path()
+        ffprobe_path = get_ffprobe_path()
+        print(f"Using FFmpeg path: {ffmpeg_path}")
+        print(f"Using FFprobe path: {ffprobe_path}")
+
+        if not os.path.exists(ffmpeg_path):
+            raise FileNotFoundError(f"FFmpeg binary not found at: {ffmpeg_path}")
+        if not os.path.exists(ffprobe_path):
+            raise FileNotFoundError(f"FFprobe binary not found at: {ffprobe_path}")
+
         with tempfile.NamedTemporaryFile(suffix='.flac', delete=False) as temp_file:
             output_path = Path(temp_file.name)
         
         print("Converting audio to 16kHz mono FLAC...")
-        base_path = get_base_path()
         
-        # Instead of manually constructing the path, we can use get_ffmpeg_path
-        ffmpeg_path = get_ffmpeg_path()
-
-        if not os.path.exists(ffmpeg_path):
-            raise FileNotFoundError(f"FFmpeg binary not found at: {ffmpeg_path}")
-
         try:
+            # Add explicit env configuration
+            env = os.environ.copy()
+            env["PATH"] = os.path.dirname(ffmpeg_path) + os.pathsep + env.get("PATH", "")
+            
             subprocess.run([
                 ffmpeg_path,
                 '-hide_banner',
@@ -71,7 +86,7 @@ class AudioTranscriber:
                 '-c:a', 'flac',
                 '-y',
                 str(output_path)
-            ], check=True)
+            ], check=True, env=env)
             return output_path
         except subprocess.CalledProcessError as e:
             output_path.unlink(missing_ok=True)
