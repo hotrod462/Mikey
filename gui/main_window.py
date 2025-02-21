@@ -92,7 +92,7 @@ class AudioRecorderGUI(QtWidgets.QMainWindow):
         transcribe_layout.addLayout(device_layout)
         
         transcribe_group.setLayout(transcribe_layout)
-        layout.insertWidget(2, transcribe_group)  # Insert after device selection
+        layout.addWidget(transcribe_group)  # Now placed after device selection
 
         # Buttons for controlling recording.
         btn_layout = QtWidgets.QHBoxLayout()
