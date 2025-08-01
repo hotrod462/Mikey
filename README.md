@@ -2,6 +2,7 @@
  ## API for meeting recording
 If you’re looking for a hosted meeting recording API, consider checking out [Recall.ai](https://www.recall.ai/?utm_source=github&utm_medium=sponsorship&utm_campaign=mikey), an API that records Zoom, Google Meet, Microsoft Teams, In-person meetings, and more.
 
+##Mikey
 Mikey is an application for recording audio, transcribing it locally or using the Groq API. Mikey provides a seamless experience for managing recordings, viewing transcriptions, and exploring saved sessions.
 
 ## Features
